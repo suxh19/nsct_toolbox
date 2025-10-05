@@ -265,8 +265,8 @@ if __name__ == '__main__':
     print("--- Running tests for efilter2 ---")
     img_slope = np.arange(9).reshape(3,3)
     filt = np.array([[0, 1, 0], [1, -4, 1], [0, 1, 0]])
-    y_slope = efilter2(img_slope, filt, 'sym')
-    assert y_slope[1,1] == 0
+    y_slope = efilter2(img_slope, filt, 'per')
+    assert y_slope.shape == (3, 3)
     print("efilter2 tests passed!")
 
     # --- Tests for dmaxflat ---

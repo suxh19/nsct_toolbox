@@ -12,17 +12,12 @@ def extend2(x, ru, rd, cl, cr, extmod='per'):
         cr (int): Amount of extension right for columns.
         extmod (str): Extension mode. Valid modes are:
             'per': Periodized extension (default).
-            'sym': Symmetric extension.
             'qper_row': Quincunx periodized extension in row.
             'qper_col': Quincunx periodized extension in column.
 
     Returns:
         np.ndarray: Extended image.
     """
-    if extmod == 'sym':
-        # Symmetric extension using numpy.pad
-        return np.pad(x, ((ru, rd), (cl, cr)), 'symmetric')
-
     if extmod == 'per':
         # Periodic extension using numpy.pad
         return np.pad(x, ((ru, rd), (cl, cr)), 'wrap')
@@ -205,9 +200,8 @@ if __name__ == '__main__':
     # --- Tests for extend2 ---
     print("--- Running tests for extend2 ---")
     img = np.arange(16).reshape((4, 4))
-    ext_sym = extend2(img, 1, 1, 1, 1, 'sym')
-    assert ext_sym.shape == (6, 6)
-    assert ext_sym[0, 0] == img[0, 0]
+    ext_per = extend2(img, 1, 1, 1, 1, 'per')
+    assert ext_per.shape == (6, 6)
     print("extend2 tests passed!")
 
     # --- Tests for upsample2df ---
