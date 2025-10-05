@@ -97,7 +97,7 @@ def modulate2(x, mode='b', center=None):
     n1 = np.arange(1, s[0] + 1) - o[0]
     n2 = np.arange(1, s[1] + 1) - o[1]
 
-    y = x.copy()
+    y = x.astype(np.float64, copy=True) # Cast to float to handle multiplication by -1
     if mode in ['r', 'b']:
         m1 = (-1) ** n1
         y *= m1[:, np.newaxis]
@@ -107,6 +107,7 @@ def modulate2(x, mode='b', center=None):
         y *= m2[np.newaxis, :]
 
     return y
+
 
 def resampz(x, type, shift=1):
     """
@@ -123,7 +124,6 @@ def resampz(x, type, shift=1):
     sx = x.shape
 
     if type in [1, 2]: # Vertical shearing
-        # Create a large enough canvas
         y = np.zeros((sx[0] + abs(shift * (sx[1] - 1)), sx[1]), dtype=x.dtype)
 
         if type == 1:
@@ -131,9 +131,9 @@ def resampz(x, type, shift=1):
         else: # type == 2
             shift1 = np.arange(sx[1]) * shift
 
-        # Normalize shifts to be non-negative for indexing
         if np.any(shift1 < 0):
-            shift1 -= shift1.min()
+            # Normalize to be non-negative for indexing
+            shift1 = shift1 - shift1.min()
 
         for n in range(sx[1]):
             y[shift1[n] : shift1[n] + sx[0], n] = x[:, n]
@@ -142,7 +142,7 @@ def resampz(x, type, shift=1):
         row_norms = np.linalg.norm(y, axis=1)
         non_zero_rows = np.where(row_norms > 0)[0]
         if len(non_zero_rows) == 0: return np.array([[]])
-        y = y[non_zero_rows.min():non_zero_rows.max()+1, :]
+        return y[non_zero_rows.min():non_zero_rows.max()+1, :]
 
     elif type in [3, 4]: # Horizontal shearing
         y = np.zeros((sx[0], sx[1] + abs(shift * (sx[0] - 1))), dtype=x.dtype)
@@ -153,7 +153,8 @@ def resampz(x, type, shift=1):
             shift2 = np.arange(sx[0]) * shift
 
         if np.any(shift2 < 0):
-            shift2 -= shift2.min()
+            # Normalize to be non-negative for indexing
+            shift2 = shift2 - shift2.min()
 
         for m in range(sx[0]):
             y[m, shift2[m] : shift2[m] + sx[1]] = x[m, :]
@@ -162,13 +163,10 @@ def resampz(x, type, shift=1):
         col_norms = np.linalg.norm(y, axis=0)
         non_zero_cols = np.where(col_norms > 0)[0]
         if len(non_zero_cols) == 0: return np.array([[]])
-        y = y[:, non_zero_cols.min():non_zero_cols.max()+1]
+        return y[:, non_zero_cols.min():non_zero_cols.max()+1]
 
     else:
         raise ValueError("Type must be one of {1, 2, 3, 4}")
-
-    return y
-
 
 def qupz(x, type=1):
     """

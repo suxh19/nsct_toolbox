@@ -66,12 +66,14 @@ def efilter2(x, f, extmod='per', shift=None):
     if shift is None:
         shift = [0, 0]
 
+    x_float = x.astype(np.float64)
+
     # The origin of filter f is assumed to be floor(size(f)/2) + 1.
     # Amount of shift should be no more than floor((size(f)-1)/2).
     sf = (np.array(f.shape) - 1) / 2
 
     # Extend the image
-    xext = extend2(x,
+    xext = extend2(x_float,
                    int(np.floor(sf[0]) + shift[0]),
                    int(np.ceil(sf[0]) - shift[0]),
                    int(np.floor(sf[1]) + shift[1]),
