@@ -6,43 +6,50 @@ close all;
 
 fprintf('=== 测试 dfilters.m ===\n');
 
-%% 测试案例 1: 'pkva' 滤波器
+%% 测试案例 1: 'pkva' 滤波器 (分解)
 fname1 = 'pkva';
-[h0_1, h1_1] = dfilters(fname1);
+type1 = 'd';  % decomposition
+[h0_1, h1_1] = dfilters(fname1, type1);
 
-%% 测试案例 2: 'cd' 滤波器
+%% 测试案例 2: 'cd' 滤波器 (分解)
 fname2 = 'cd';
-[h0_2, h1_2] = dfilters(fname2);
+type2 = 'd';
+[h0_2, h1_2] = dfilters(fname2, type2);
 
-%% 测试案例 3: 'dmaxflat7' 滤波器
+%% 测试案例 3: 'dmaxflat7' 滤波器 (分解)
 fname3 = 'dmaxflat7';
-[h0_3, h1_3] = dfilters(fname3);
+type3 = 'd';
+[h0_3, h1_3] = dfilters(fname3, type3);
 
-%% 测试案例 4: '9-7' 滤波器
+%% 测试案例 4: '9-7' 滤波器 (分解)
 fname4 = '9-7';
-[h0_4, h1_4] = dfilters(fname4);
+type4 = 'd';
+[h0_4, h1_4] = dfilters(fname4, type4);
 
-%% 测试案例 5: 'pkva6' 滤波器
+%% 测试案例 5: 'pkva6' 滤波器 (分解)
 fname5 = 'pkva6';
-[h0_5, h1_5] = dfilters(fname5);
+type5 = 'd';
+[h0_5, h1_5] = dfilters(fname5, type5);
 
-%% 测试案例 6: 'pkva8' 滤波器
+%% 测试案例 6: 'pkva8' 滤波器 (分解)
 fname6 = 'pkva8';
-[h0_6, h1_6] = dfilters(fname6);
+type6 = 'd';
+[h0_6, h1_6] = dfilters(fname6, type6);
 
-%% 测试案例 7: 'pkva12' 滤波器
+%% 测试案例 7: 'pkva12' 滤波器 (分解)
 fname7 = 'pkva12';
-[h0_7, h1_7] = dfilters(fname7);
+type7 = 'd';
+[h0_7, h1_7] = dfilters(fname7, type7);
 
 %% 保存测试数据
 save('../test_data/step3_dfilters.mat', ...
-    'fname1', 'h0_1', 'h1_1', ...
-    'fname2', 'h0_2', 'h1_2', ...
-    'fname3', 'h0_3', 'h1_3', ...
-    'fname4', 'h0_4', 'h1_4', ...
-    'fname5', 'h0_5', 'h1_5', ...
-    'fname6', 'h0_6', 'h1_6', ...
-    'fname7', 'h0_7', 'h1_7');
+    'fname1', 'type1', 'h0_1', 'h1_1', ...
+    'fname2', 'type2', 'h0_2', 'h1_2', ...
+    'fname3', 'type3', 'h0_3', 'h1_3', ...
+    'fname4', 'type4', 'h0_4', 'h1_4', ...
+    'fname5', 'type5', 'h0_5', 'h1_5', ...
+    'fname6', 'type6', 'h0_6', 'h1_6', ...
+    'fname7', 'type7', 'h0_7', 'h1_7');
 
 fprintf('测试数据已保存到 test_data/step3_dfilters.mat\n');
 fprintf('测试用例:\n');
