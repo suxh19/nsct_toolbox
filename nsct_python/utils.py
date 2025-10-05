@@ -136,7 +136,8 @@ def resampz(x, type, shift=1):
         # Trim zero rows
         row_norms = np.linalg.norm(y, axis=1)
         non_zero_rows = np.where(row_norms > 0)[0]
-        if len(non_zero_rows) == 0: return np.array([[]])
+        if len(non_zero_rows) == 0:
+            return np.zeros((0, sx[1]), dtype=x.dtype)  # Correct shape for empty result
         return y[non_zero_rows.min():non_zero_rows.max()+1, :]
 
     elif type in [3, 4]: # Horizontal shearing
@@ -157,7 +158,8 @@ def resampz(x, type, shift=1):
         # Trim zero columns
         col_norms = np.linalg.norm(y, axis=0)
         non_zero_cols = np.where(col_norms > 0)[0]
-        if len(non_zero_cols) == 0: return np.array([[]])
+        if len(non_zero_cols) == 0:
+            return np.zeros((sx[0], 0), dtype=x.dtype)  # Correct shape for empty result
         return y[:, non_zero_cols.min():non_zero_cols.max()+1]
 
     else:
@@ -167,6 +169,9 @@ def qupz(x, type=1):
     """
     Quincunx Upsampling, based on the transform's mathematical definition.
     This replaces the complex resampz-based implementation.
+    
+    Note: To match MATLAB behavior, this function trims all-zero rows and columns
+    from the output, similar to how MATLAB's resampz works.
     """
     r, c = x.shape
 
@@ -194,6 +199,23 @@ def qupz(x, type=1):
     else:
         raise ValueError("type must be 1 or 2")
 
+    # Trim all-zero rows and columns (to match MATLAB's resampz behavior)
+    # This is necessary because MATLAB's qupz implementation uses resampz
+    # which automatically removes zero rows/columns
+    row_norms = np.linalg.norm(y, axis=1)
+    col_norms = np.linalg.norm(y, axis=0)
+    
+    non_zero_rows = np.where(row_norms > 0)[0]
+    non_zero_cols = np.where(col_norms > 0)[0]
+    
+    # Handle edge case: completely zero matrix
+    if len(non_zero_rows) == 0 or len(non_zero_cols) == 0:
+        return np.zeros((0, 0), dtype=x.dtype)
+    
+    # Trim to bounding box of non-zero elements
+    y = y[non_zero_rows.min():non_zero_rows.max()+1, 
+          non_zero_cols.min():non_zero_cols.max()+1]
+    
     return y
 
 if __name__ == '__main__':
