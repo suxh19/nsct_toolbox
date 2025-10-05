@@ -1,7 +1,13 @@
 import numpy as np
 import torch
 import pytest
+import sys
+import os
+from pathlib import Path
 
+# Add the parent directory to sys.path to import nsct_torch and nsct_python
+current_dir = Path(__file__).resolve().parent
+sys.path.append(str(current_dir.parent))
 # --- Import original NumPy functions ---
 from nsct_python import utils as utils_np
 from nsct_python import filters as filters_np
