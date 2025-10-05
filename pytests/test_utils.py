@@ -16,7 +16,7 @@ from nsct_python.utils import extend2, upsample2df, modulate2, resampz, qupz
 
 
 # Load MATLAB test results
-MATLAB_RESULTS_PATH = Path(__file__).parent.parent / 'test_utils_results.mat'
+MATLAB_RESULTS_PATH = Path(__file__).parent.parent / 'data/test_utils_results.mat'
 
 
 @pytest.fixture(scope='module')

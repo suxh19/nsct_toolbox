@@ -1,8 +1,9 @@
 import numpy as np
 from scipy.signal import convolve2d
+from typing import Tuple, List, Optional
 from nsct_python.utils import extend2, qupz, modulate2, resampz
 
-def ld2quin(beta):
+def ld2quin(beta: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
     Construct quincunx filters from a ladder network structure allpass filter.
     Translation of ld2quin.m.
@@ -48,7 +49,7 @@ def ld2quin(beta):
 
     return h0, h1
 
-def efilter2(x, f, extmod='per', shift=None):
+def efilter2(x: np.ndarray, f: np.ndarray, extmod: str = 'per', shift: Optional[List[int]] = None) -> np.ndarray:
     """
     2D Filtering with edge handling (via extension).
     Translation of efilter2.m.
@@ -84,7 +85,7 @@ def efilter2(x, f, extmod='per', shift=None):
     # The MATLAB code uses conv2, so we use convolve2d directly.
     return convolve2d(xext, f, 'valid')
 
-def dmaxflat(N, d=0.0):
+def dmaxflat(N: int, d: float = 0.0) -> np.ndarray:
     """
     Returns 2-D diamond maxflat filters of order 'N'.
     Translation of dmaxflat.m.
@@ -123,7 +124,7 @@ def dmaxflat(N, d=0.0):
 
     return h
 
-def atrousfilters(fname):
+def atrousfilters(fname: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Generate pyramid 2D filters for nonsubsampled filter banks.
     Translation of atrousfilters.m.
@@ -183,7 +184,7 @@ def atrousfilters(fname):
     else:
         raise NotImplementedError(f"Filters '{fname}' are not implemented in this translation.")
 
-def mctrans(b, t):
+def mctrans(b: np.ndarray, t: np.ndarray) -> np.ndarray:
     """
     McClellan transformation. Translation of mctrans.m.
     Produces the 2-D FIR filter H that corresponds to the 1-D FIR filter B
@@ -216,7 +217,10 @@ def mctrans(b, t):
 
         # Subtract P0 from the center of P2
         r_p2, c_p2 = P2.shape
-        r_p0, c_p0 = (1, 1) if isinstance(P0, float) else P0.shape
+        if hasattr(P0, 'shape'):
+            r_p0, c_p0 = P0.shape  # type: ignore
+        else:
+            r_p0, c_p0 = (1, 1)
 
         start_r = (r_p2 - r_p0) // 2
         start_c = (c_p2 - c_p0) // 2
@@ -237,7 +241,7 @@ def mctrans(b, t):
     # Rotate for use with filter2 (correlation)
     return np.rot90(h, 2)
 
-def ldfilter(fname):
+def ldfilter(fname: str) -> np.ndarray:
     """
     Generate filter for the ladder structure network.
     Translation of ldfilter.m.
@@ -317,7 +321,7 @@ if __name__ == '__main__':
 
 import pywt
 
-def dfilters(fname, type='d'):
+def dfilters(fname: str, type: str = 'd') -> Tuple[np.ndarray, np.ndarray]:
     """
     Generate directional 2D filters (diamond filter pair).
     Translation of dfilters.m.
@@ -374,7 +378,7 @@ def dfilters(fname, type='d'):
     else:
         # Fallback to 1D wavelet filters from PyWavelets
         try:
-            wavelet = pywt.Wavelet(fname)
+            wavelet = pywt.Wavelet(fname)  # type: ignore
             if type == 'd':
                 h0 = np.array(wavelet.dec_lo)
                 h1 = np.array(wavelet.dec_hi)
@@ -387,7 +391,7 @@ def dfilters(fname, type='d'):
     return h0, h1
 
 
-def parafilters(f1, f2):
+def parafilters(f1: np.ndarray, f2: np.ndarray) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """
     Generate four groups of parallelogram filters from a pair of diamond filters.
     Translation of parafilters.m.
@@ -400,20 +404,20 @@ def parafilters(f1, f2):
         tuple: (y1, y2) where each is a list of 4 parallelogram filters.
     """
     # Initialize output
-    y1 = [None] * 4
-    y2 = [None] * 4
+    y1: List[np.ndarray] = []
+    y2: List[np.ndarray] = []
 
     # Modulation operation
-    y1[0] = modulate2(f1, 'r')
-    y2[0] = modulate2(f2, 'r')
-    y1[1] = modulate2(f1, 'c')
-    y2[1] = modulate2(f2, 'c')
+    y1.append(modulate2(f1, 'r'))
+    y2.append(modulate2(f2, 'r'))
+    y1.append(modulate2(f1, 'c'))
+    y2.append(modulate2(f2, 'c'))
 
     # Transpose operation
-    y1[2] = y1[0].T
-    y2[2] = y2[0].T
-    y1[3] = y1[1].T
-    y2[3] = y2[1].T
+    y1.append(y1[0].T)
+    y2.append(y2[0].T)
+    y1.append(y1[1].T)
+    y2.append(y2[1].T)
 
     # Resample the filters by corresponding rotation matrices
     for i in range(4):

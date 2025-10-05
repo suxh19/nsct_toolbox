@@ -1,9 +1,10 @@
 import numpy as np
 from scipy.signal import convolve2d
+from typing import Union, Tuple
 from nsct_python.filters import efilter2
 from nsct_python.utils import extend2
 
-def _upsample_and_find_origin(f, mup):
+def _upsample_and_find_origin(f: np.ndarray, mup: Union[int, float, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
     """
     Upsamples a filter and returns the upsampled filter and its new origin.
     """
@@ -35,7 +36,7 @@ def _upsample_and_find_origin(f, mup):
 
     return f_up, f_up_origin
 
-def _convolve_upsampled(x, f, mup, is_rec=False):
+def _convolve_upsampled(x: np.ndarray, f: np.ndarray, mup: Union[int, float, np.ndarray], is_rec: bool = False) -> np.ndarray:
     """ Helper for convolution with an upsampled filter, handling reconstruction. """
     # If the filter is all zeros, the output is all zeros.
     if not np.any(f):
@@ -50,7 +51,7 @@ def _convolve_upsampled(x, f, mup, is_rec=False):
 
     pad_top = f_up_origin[0]
     pad_bottom = f_up.shape[0] - 1 - f_up_origin[0]
-    pad_left = f_up_origin[1]
+    pad_left = f_up_origin[1]  # type: ignore
     pad_right = f_up.shape[1] - 1 - f_up_origin[1]
 
     x_ext = extend2(x, pad_top, pad_bottom, pad_left, pad_right)

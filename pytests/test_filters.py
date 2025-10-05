@@ -19,7 +19,7 @@ from nsct_python.filters import (
 
 
 # Load MATLAB test results
-MATLAB_RESULTS_PATH = Path(__file__).parent.parent / 'test_filters_results.mat'
+MATLAB_RESULTS_PATH = Path(__file__).parent.parent / 'data/test_filters_results.mat'
 
 
 @pytest.fixture(scope='module')
