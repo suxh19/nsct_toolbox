@@ -75,16 +75,13 @@ end
 %% 测试案例 4: atrousdec 和 atrousrec (金字塔分解)
 fprintf('\n[4] 测试 atrousdec/atrousrec ...\n');
 try
-    % 获取金字塔滤波器
-    [h, g] = atrousfilters('maxflat');
-    
-    % 3 级金字塔分解
+    % 3 级金字塔分解 - 注意 atrousdec 第二个参数是滤波器名称字符串
     nlev_pyramid = 3;
-    y_atrous = atrousdec(test_image, h, nlev_pyramid);
+    y_atrous = atrousdec(test_image, 'maxflat', nlev_pyramid);
     fprintf('  金字塔子带数: %d\n', length(y_atrous));
     
     % 金字塔重构
-    rec_atrous = atrousrec(y_atrous, g);
+    rec_atrous = atrousrec(y_atrous, 'maxflat');
     
     % 计算误差
     error_atrous = max(abs(test_image(:) - rec_atrous(:)));
@@ -93,34 +90,33 @@ try
     atrous_success = true;
 catch ME
     fprintf('  错误: %s\n', ME.message);
-    h = []; g = []; nlev_pyramid = 0; y_atrous = {}; rec_atrous = []; error_atrous = inf;
+    nlev_pyramid = 0; y_atrous = {}; rec_atrous = []; error_atrous = inf;
     atrous_success = false;
 end
 
 %% 测试案例 5: atrousdec - 不同级别和滤波器
 fprintf('\n[5] 测试 atrousdec/atrousrec (不同参数) ...\n');
 try
-    [h2, g2] = atrousfilters('binom');
     nlev_pyramid2 = 2;
-    y_atrous2 = atrousdec(test_image, h2, nlev_pyramid2);
-    rec_atrous2 = atrousrec(y_atrous2, g2);
+    y_atrous2 = atrousdec(test_image, 'pyr', nlev_pyramid2);
+    rec_atrous2 = atrousrec(y_atrous2, 'pyr');
     error_atrous2 = max(abs(test_image(:) - rec_atrous2(:)));
     fprintf('  金字塔子带数: %d, 重构误差: %e\n', length(y_atrous2), error_atrous2);
     atrous2_success = true;
 catch ME
     fprintf('  错误: %s\n', ME.message);
-    h2 = []; g2 = []; nlev_pyramid2 = 0; y_atrous2 = {}; rec_atrous2 = []; error_atrous2 = inf;
+    nlev_pyramid2 = 0; y_atrous2 = {}; rec_atrous2 = []; error_atrous2 = inf;
     atrous2_success = false;
 end
 
 %% 保存测试数据
 save('../test_data/step4_core_decomposition.mat', ...
     'test_image', ...
-    'h0', 'h1', 'y0', 'y1', 'rec_nssfb', 'error_nssfb', 'nssfb_success', ...
+    'y0', 'y1', 'rec_nssfb', 'error_nssfb', 'nssfb_success', ...
     'nlevel', 'y_nsdfb', 'rec_nsdfb', 'error_nsdfb', 'nsdfb_success', ...
     'nlevel2', 'y_nsdfb2', 'rec_nsdfb2', 'error_nsdfb2', 'nsdfb2_success', ...
-    'h', 'g', 'nlev_pyramid', 'y_atrous', 'rec_atrous', 'error_atrous', 'atrous_success', ...
-    'h2', 'g2', 'nlev_pyramid2', 'y_atrous2', 'rec_atrous2', 'error_atrous2', 'atrous2_success');
+    'nlev_pyramid', 'y_atrous', 'rec_atrous', 'error_atrous', 'atrous_success', ...
+    'nlev_pyramid2', 'y_atrous2', 'rec_atrous2', 'error_atrous2', 'atrous2_success');
 
 fprintf('\n测试数据已保存到 test_data/step4_core_decomposition.mat\n');
 fprintf('\n========================================\n');
