@@ -8,19 +8,20 @@ close all;
 fprintf('=== 测试核心分解与重构模块 ===\n');
 
 %% 准备测试数据
-test_image = magic(64);
+test_image = magic(128);  % 使用更大的图像以避免边界问题
 
 %% 测试案例 1: nssfbdec 和 nssfbrec (双通道滤波器组)
 fprintf('\n[1] 测试 nssfbdec/nssfbrec ...\n');
 try
-    % 获取滤波器
-    [h0, h1] = dfilters('pkva');
+    % 获取滤波器 - 需要指定类型 'd' 或 'r'
+    [h0, h1] = dfilters('pkva', 'd');
+    [g0, g1] = dfilters('pkva', 'r');
     
     % 分解
     [y0, y1] = nssfbdec(test_image, h0, h1);
     
     % 重构
-    rec_nssfb = nssfbrec(y0, y1, h0, h1);
+    rec_nssfb = nssfbrec(y0, y1, g0, g1);
     
     % 计算误差
     error_nssfb = max(abs(test_image(:) - rec_nssfb(:)));
