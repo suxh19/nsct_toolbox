@@ -53,6 +53,102 @@ def extend2(x, ru, rd, cl, cr, extmod='per'):
     raise ValueError(f"Invalid extension mode: {extmod}")
 
 
+def symext(x, h, shift):
+    """
+    Symmetric extension for image x with filter h.
+    Translation of symext.m.
+    
+    Performs symmetric extension (H/V symmetry) for image x and filter h.
+    The filter h is assumed to have odd dimensions.
+    If the filter has horizontal and vertical symmetry, then 
+    the nonsymmetric part of conv2(h,x) has the same size as x.
+    
+    Args:
+        x (np.ndarray): Input image (m×n).
+        h (np.ndarray): 2D filter coefficients.
+        shift (list or tuple): Shift values [s1, s2].
+    
+    Returns:
+        np.ndarray: Symmetrically extended image with size (m+p-1, n+q-1),
+                    where p and q are the filter dimensions.
+    
+    Notes:
+        - Created by A. Cunha, Fall 2003
+        - Modified 12/2005 by A. Cunha (fixed bug on swapped indices)
+        - Python translation maintains exact MATLAB behavior
+    
+    Example:
+        >>> x = np.arange(16).reshape(4, 4)
+        >>> h = np.ones((3, 3))
+        >>> shift = [1, 1]
+        >>> y = symext(x, h, shift)
+        >>> y.shape
+        (6, 6)
+    """
+    m, n = x.shape
+    p, q = h.shape
+    
+    # MATLAB: parp = 1 - mod(p, 2); parq = 1 - mod(q, 2)
+    # These variables are computed but not used in MATLAB code
+    # parp = 1 - (p % 2)
+    # parq = 1 - (q % 2)
+    
+    p2 = int(np.floor(p / 2))
+    q2 = int(np.floor(q / 2))
+    s1 = shift[0]
+    s2 = shift[1]
+    
+    # Calculate extension amounts
+    ss = p2 - s1 + 1
+    rr = q2 - s2 + 1
+    
+    # MATLAB: yT = [fliplr(x(:,1:ss)) x  x(:,n  :-1: n-p-s1+1)];
+    # Horizontal extension (left and right)
+    if ss > 0:
+        left_ext = np.fliplr(x[:, :ss])
+    else:
+        left_ext = np.empty((m, 0))
+    
+    # Right extension: x(:, n:-1:n-p-s1+1)
+    # MATLAB indices: n (last column, index n-1 in Python) down to n-p-s1+1
+    # In Python: n-1 down to n-p-s1 (inclusive)
+    right_start = n - 1
+    right_end = n - p - s1  # This will be used as: right_end : right_start + 1
+    
+    if right_end <= right_start:
+        right_ext = np.fliplr(x[:, right_end:right_start + 1])
+    else:
+        right_ext = np.empty((m, 0))
+    
+    yT = np.concatenate([left_ext, x, right_ext], axis=1)
+    
+    # MATLAB: yT = [flipud(yT(1:rr,:)); yT ;  yT(m  :-1: m-q-s2+1,:)];
+    # Vertical extension (top and bottom)
+    if rr > 0:
+        top_ext = np.flipud(yT[:rr, :])
+    else:
+        top_ext = np.empty((0, yT.shape[1]))
+    
+    # Bottom extension: yT(m:-1:m-q-s2+1, :)
+    # MATLAB indices: m (last row, index m-1 in Python) down to m-q-s2+1
+    # In Python: m-1 down to m-q-s2 (inclusive)
+    bottom_start = m - 1
+    bottom_end = m - q - s2
+    
+    if bottom_end <= bottom_start:
+        bottom_ext = np.flipud(yT[bottom_end:bottom_start + 1, :])
+    else:
+        bottom_ext = np.empty((0, yT.shape[1]))
+    
+    yT = np.concatenate([top_ext, yT, bottom_ext], axis=0)
+    
+    # MATLAB: yT = yT(1:m+p-1, 1:n+q-1);
+    # Crop to final size (this is already the expected size, so just verify)
+    yT = yT[:m + p - 1, :n + q - 1]
+    
+    return yT
+
+
 def upsample2df(h, power=1):
     """
     Upsample a 2D filter by 2^power by inserting zeros.
