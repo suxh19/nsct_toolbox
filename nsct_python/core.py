@@ -4,6 +4,92 @@ from typing import Union, Tuple, Optional
 from nsct_python.filters import efilter2
 from nsct_python.utils import extend2, symext, upsample2df
 
+
+def _zconv2(x: np.ndarray, h: np.ndarray, mup: np.ndarray) -> np.ndarray:
+    """
+    2D convolution with upsampled filter using periodic boundary.
+    Python translation of zconv2.c MEX file.
+    
+    This computes convolution as if the filter had been upsampled by matrix mup,
+    but without actually upsampling the filter (efficient stepping through zeros).
+    
+    Args:
+        x: Input signal (2D array)
+        h: Filter (2D array)
+        mup: Upsampling matrix (2x2 array) [[M0, M1], [M2, M3]]
+    
+    Returns:
+        y: Convolution output (same size as x)
+    """
+    mup = np.array(mup, dtype=int)
+    M0, M1, M2, M3 = mup[0, 0], mup[0, 1], mup[1, 0], mup[1, 1]
+    
+    s_row_len, s_col_len = x.shape
+    f_row_len, f_col_len = h.shape
+    
+    # Calculate upsampled filter dimensions
+    new_f_row_len = (M0 - 1) * (f_row_len - 1) + M2 * (f_col_len - 1) + f_row_len - 1
+    new_f_col_len = (M3 - 1) * (f_col_len - 1) + M1 * (f_row_len - 1) + f_col_len - 1
+    
+    # Initialize output
+    y = np.zeros_like(x)
+    
+    # Starting indices (center of upsampled filter)
+    start1 = new_f_row_len // 2
+    start2 = new_f_col_len // 2
+    mn1 = start1 % s_row_len
+    mn2 = mn2_save = start2 % s_col_len
+    
+    # Compute convolution
+    for n1 in range(s_row_len):
+        for n2 in range(s_col_len):
+            out_index_x = mn1
+            out_index_y = mn2
+            sum_val = 0.0
+            
+            for l1 in range(f_row_len):
+                index_x = out_index_x
+                index_y = out_index_y
+                
+                for l2 in range(f_col_len):
+                    sum_val += x[index_x, index_y] * h[l1, l2]
+                    
+                    # Step through input with M2, M3
+                    index_x -= M2
+                    if index_x < 0:
+                        index_x += s_row_len
+                    if index_x >= s_row_len:
+                        index_x -= s_row_len
+                        
+                    index_y -= M3
+                    if index_y < 0:
+                        index_y += s_col_len
+                
+                # Step through for outer filter loop with M0, M1
+                out_index_x -= M0
+                if out_index_x < 0:
+                    out_index_x += s_row_len
+                    
+                out_index_y -= M1
+                if out_index_y < 0:
+                    out_index_y += s_col_len
+                if out_index_y >= s_col_len:
+                    out_index_y -= s_col_len
+            
+            y[n1, n2] = sum_val
+            
+            mn2 += 1
+            if mn2 >= s_col_len:
+                mn2 -= s_col_len
+        
+        mn2 = mn2_save
+        mn1 += 1
+        if mn1 >= s_row_len:
+            mn1 -= s_row_len
+    
+    return y
+
+
 def _upsample_and_find_origin(f: np.ndarray, mup: Union[int, float, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
     """
     Upsamples a filter and returns the upsampled filter and its new origin.
@@ -37,27 +123,25 @@ def _upsample_and_find_origin(f: np.ndarray, mup: Union[int, float, np.ndarray])
     return f_up, f_up_origin
 
 def _convolve_upsampled(x: np.ndarray, f: np.ndarray, mup: Union[int, float, np.ndarray], is_rec: bool = False) -> np.ndarray:
-    """ Helper for convolution with an upsampled filter, handling reconstruction. """
+    """ 
+    Helper for convolution with an upsampled filter, handling reconstruction.
+    Uses zconv2-style periodic convolution when mup is a 2x2 matrix.
+    """
     # If the filter is all zeros, the output is all zeros.
     if not np.any(f):
         return np.zeros_like(x)
-
-    f_up, f_up_origin = _upsample_and_find_origin(f, mup)
-
-    # For reconstruction, we use the time-reversed filter and its origin
-    if is_rec:
-        f_up = np.rot90(f_up, 2)
-        f_up_origin = np.array(f_up.shape) - 1 - f_up_origin
-
-    pad_top = f_up_origin[0]
-    pad_bottom = f_up.shape[0] - 1 - f_up_origin[0]
-    pad_left = f_up_origin[1]  # type: ignore
-    pad_right = f_up.shape[1] - 1 - f_up_origin[1]
-
-    x_ext = extend2(x, pad_top, pad_bottom, pad_left, pad_right)
-
-    # Perform correlation by rotating the kernel 180 degrees for convolve2d
-    return convolve2d(x_ext, np.rot90(f_up, 2), 'valid')
+    
+    # Convert mup to matrix form
+    if isinstance(mup, (int, float)):
+        mup_mat = np.array([[mup, 0], [0, mup]], dtype=int)
+    else:
+        mup_mat = np.array(mup, dtype=int)
+    
+    # For reconstruction, use time-reversed filter
+    f_to_use = np.rot90(f, 2) if is_rec else f
+    
+    # Use zconv2 for periodic convolution with upsampled filter
+    return _zconv2(x, f_to_use, mup_mat)
 
 def nssfbdec(x, f1, f2, mup=None):
     """
@@ -314,6 +398,275 @@ def nsfbrec(y0: np.ndarray, y1: np.ndarray, g0: np.ndarray, g1: np.ndarray, lev:
             convolve2d(y1_ext, g1, mode='valid')
     
     return x
+
+
+def nsdfbdec(x: np.ndarray, dfilter, clevels: int = 0):
+    """
+    Nonsubsampled Directional Filter Bank (NSDFB) decomposition.
+    Translation of nsdfbdec.m.
+    
+    Decomposes the image X by a nonsubsampled directional filter bank
+    with a binary-tree structure. It outputs the final branches, totally 2^clevels.
+    There is no subsampling and hence the operation is shift-invariant.
+    
+    Args:
+        x (np.ndarray): Input image (2D array).
+        dfilter: Either:
+            - str: Directional filter name (e.g., 'pkva', 'dmaxflat7')
+            - dict: Dictionary with keys 'k1', 'k2', 'f1', 'f2' containing precomputed filters
+        clevels (int): Number of decomposition levels (non-negative integer).
+                      clevels=0: No decomposition, return input.
+                      clevels=1: 2 subbands.
+                      clevels=n: 2^n subbands.
+    
+    Returns:
+        list: List of output subbands (length 2^clevels).
+    
+    Notes:
+        - Uses nssfbdec for two-channel nonsubsampled decomposition
+        - First level uses fan filters (k1, k2)
+        - Higher levels use parallelogram filters (f1, f2)
+        - Upsampling matrices are computed according to Minh N. Do's thesis (eq. 3.18)
+    
+    History:
+        - Created on 08/06/2004 by Jianping Zhou
+        - Python translation: Oct 2025
+    
+    See also:
+        dfilters, parafilters, nssfbdec, nsdfbrec
+    
+    Example:
+        >>> from nsct_python.core import nsdfbdec
+        >>> import numpy as np
+        >>> x = np.random.rand(64, 64)
+        >>> y = nsdfbdec(x, 'pkva', 2)  # 2 levels -> 4 subbands
+        >>> len(y)
+        4
+    """
+    from nsct_python.filters import dfilters, parafilters
+    from nsct_python.utils import modulate2
+    
+    # Input validation
+    if clevels != round(clevels) or clevels < 0:
+        raise ValueError('Number of decomposition levels must be a non-negative integer')
+    
+    # No decomposition case
+    if clevels == 0:
+        return [x]
+    
+    # Get filters
+    if isinstance(dfilter, str):
+        # Get the directional filters for the critically sampled DFB
+        h1, h2 = dfilters(dfilter, 'd')
+        
+        # A scale is required for the nonsubsampled case
+        h1 = h1 / np.sqrt(2)
+        h2 = h2 / np.sqrt(2)
+        
+        # Generate the first-level fan filters by modulations
+        k1 = modulate2(h1, 'c')
+        k2 = modulate2(h2, 'c')
+        
+        # Obtain the parallelogram filters from the diamond filters
+        f1, f2 = parafilters(h1, h2)
+        
+    elif isinstance(dfilter, dict):
+        # Copy filters directly from dict
+        if not all(key in dfilter for key in ['k1', 'k2', 'f1', 'f2']):
+            raise ValueError("Filter dict must contain keys: 'k1', 'k2', 'f1', 'f2'")
+        k1 = dfilter['k1']
+        k2 = dfilter['k2']
+        f1 = dfilter['f1']
+        f2 = dfilter['f2']
+    else:
+        raise TypeError('dfilter must be a string or dict')
+    
+    # Quincunx sampling matrix
+    q1 = np.array([[1, -1], [1, 1]])
+    
+    # First-level decomposition
+    if clevels == 1:
+        # No upsampling for filters at the first level
+        y1, y2 = nssfbdec(x, k1, k2)
+        return [y1, y2]
+    
+    # Multi-level decomposition (clevels >= 2)
+    
+    # Second-level decomposition
+    # No upsampling at filters for the first level
+    x1, x2 = nssfbdec(x, k1, k2)
+    
+    # Convolution with upsampled filters
+    y = [None] * 4
+    y[0], y[1] = nssfbdec(x1, k1, k2, q1)
+    y[2], y[3] = nssfbdec(x2, k1, k2, q1)
+    
+    # Third and higher levels decomposition
+    for l in range(3, clevels + 1):
+        # Allocate space for the new subband outputs
+        y_old = y
+        y = [None] * (2 ** l)
+        
+        # The first half channels
+        for k in range(1, 2 ** (l - 2) + 1):
+            # Compute the upsampling matrix by the formula (3.18) of Minh N. Do's thesis
+            # The upsampling matrix for the channel k in a l-levels DFB is M_k^{(l-1)}
+            
+            # Compute s_{(l-1)}(k):
+            slk = 2 * ((k - 1) // 2) - 2 ** (l - 3) + 1
+            
+            # Compute the sampling matrix:
+            mkl = 2 * np.array([[2 ** (l - 3), 0], [0, 1]]) @ np.array([[1, 0], [-slk, 1]])
+            
+            i = ((k - 1) % 2)  # Index 0 or 1
+            
+            # Decompose by the two-channel filter bank
+            y[2 * k - 2], y[2 * k - 1] = nssfbdec(y_old[k - 1], f1[i], f2[i], mkl)
+        
+        # The second half channels
+        for k in range(2 ** (l - 2) + 1, 2 ** (l - 1) + 1):
+            # Compute the upsampling matrix by the extension of the formula (3.18)
+            # of Minh N. Do's thesis to the second half channels
+            
+            # Compute s_{(l-1)}(k):
+            slk = 2 * ((k - 2 ** (l - 2) - 1) // 2) - 2 ** (l - 3) + 1
+            
+            # Compute the sampling matrix:
+            mkl = 2 * np.array([[1, 0], [0, 2 ** (l - 3)]]) @ np.array([[1, -slk], [0, 1]])
+            
+            i = ((k - 1) % 2) + 2  # Index 2 or 3
+            
+            # Decompose by the two-channel filter bank
+            y[2 * k - 2], y[2 * k - 1] = nssfbdec(y_old[k - 1], f1[i], f2[i], mkl)
+    
+    return y
+
+
+def nsdfbrec(y: List[np.ndarray], dfilter: Union[str, dict]) -> np.ndarray:
+    """
+    Nonsubsampled directional filter bank reconstruction.
+    
+    Reconstructs the image from directional subbands obtained from nsdfbdec.
+    Uses a binary-tree structure with no subsampling (shift-invariant).
+    Translation of nsdfbrec.m.
+    
+    Args:
+        y (list): List of directional subbands (2^clevels subbands).
+        dfilter (str or dict): Directional filter specification.
+            - str: Filter name (e.g., 'pkva', 'dmaxflat7')
+            - dict: Dict with keys 'k1', 'k2', 'f1', 'f2'
+    
+    Returns:
+        np.ndarray: Reconstructed image.
+    
+    Notes:
+        - This is the inverse operation of nsdfbdec
+        - Number of subbands must be a power of 2
+        - Uses synthesis filters (type 'r')
+        - Perfect reconstruction is achieved with matching analysis/synthesis filters
+    
+    Examples:
+        >>> x = np.random.rand(64, 64)
+        >>> y = nsdfbdec(x, 'pkva', 2)  # Decompose into 4 subbands
+        >>> x_rec = nsdfbrec(y, 'pkva')  # Reconstruct
+        >>> np.allclose(x, x_rec, atol=1e-10)
+        True
+    """
+    from nsct_python.filters import dfilters, parafilters
+    from nsct_python.utils import modulate2
+    
+    # Determine clevels from number of subbands
+    clevels = int(np.log2(len(y)))
+    if 2**clevels != len(y):
+        raise ValueError('Number of subbands must be a power of 2')
+    
+    # No reconstruction case
+    if clevels == 0:
+        return y[0]
+    
+    # Get filters (use synthesis filters 'r')
+    if isinstance(dfilter, str):
+        # Get the directional filters for the critically sampled DFB
+        h1, h2 = dfilters(dfilter, 'r')  # Note: 'r' for reconstruction
+        
+        # A scale is required for the nonsubsampled case
+        h1 = h1 / np.sqrt(2)
+        h2 = h2 / np.sqrt(2)
+        
+        # Generate the first-level fan filters by modulations
+        k1 = modulate2(h1, 'c')
+        k2 = modulate2(h2, 'c')
+        
+        # Obtain the parallelogram filters from the diamond filters
+        f1, f2 = parafilters(h1, h2)
+        
+    elif isinstance(dfilter, dict):
+        # Copy filters directly from dict
+        if not all(key in dfilter for key in ['k1', 'k2', 'f1', 'f2']):
+            raise ValueError("Filter dict must contain keys: 'k1', 'k2', 'f1', 'f2'")
+        k1 = dfilter['k1']
+        k2 = dfilter['k2']
+        f1 = dfilter['f1']
+        f2 = dfilter['f2']
+    else:
+        raise TypeError('dfilter must be a string or dict')
+    
+    # Quincunx sampling matrix
+    q1 = np.array([[1, -1], [1, 1]])
+    
+    # First-level reconstruction
+    if clevels == 1:
+        # No upsampling for filters at the first level
+        return nssfbrec(y[0], y[1], k1, k2)
+    
+    # Multi-level reconstruction (clevels >= 2)
+    # To save memory, we use a copy of the input list to store middle outputs
+    x = y.copy()
+    
+    # Third and higher levels reconstructions (from highest to lowest)
+    for l in range(clevels, 2, -1):
+        # The first half channels
+        for k in range(1, 2 ** (l - 2) + 1):
+            # Compute the upsampling matrix by the formula (3.18) of Minh N. Do's thesis
+            # The upsampling matrix for the channel k in a l-levels DFB is M_k^{(l-1)}
+            
+            # Compute s_{(l-1)}(k):
+            slk = 2 * ((k - 1) // 2) - 2 ** (l - 3) + 1
+            
+            # Compute the sampling matrix:
+            mkl = 2 * np.array([[2 ** (l - 3), 0], [0, 1]]) @ np.array([[1, 0], [-slk, 1]])
+            
+            i = ((k - 1) % 2)  # Index 0 or 1
+            
+            # Reconstruct the two-channel filter bank
+            x[k - 1] = nssfbrec(x[2 * k - 2], x[2 * k - 1], f1[i], f2[i], mkl)
+        
+        # The second half channels
+        for k in range(2 ** (l - 2) + 1, 2 ** (l - 1) + 1):
+            # Compute the upsampling matrix by the extension of the formula (3.18)
+            # of Minh N. Do's thesis to the second half channels
+            
+            # Compute s_{(l-1)}(k):
+            slk = 2 * ((k - 2 ** (l - 2) - 1) // 2) - 2 ** (l - 3) + 1
+            
+            # Compute the sampling matrix:
+            mkl = 2 * np.array([[1, 0], [0, 2 ** (l - 3)]]) @ np.array([[1, -slk], [0, 1]])
+            
+            i = ((k - 1) % 2) + 2  # Index 2 or 3
+            
+            # Reconstruct the two-channel filter bank
+            x[k - 1] = nssfbrec(x[2 * k - 2], x[2 * k - 1], f1[i], f2[i], mkl)
+    
+    # Second-level reconstruction
+    # Convolution with upsampled filters for the second level
+    x[0] = nssfbrec(x[0], x[1], k1, k2, q1)
+    x[1] = nssfbrec(x[2], x[3], k1, k2, q1)
+    
+    # First-level reconstruction
+    # No upsampling for filters at the first level
+    result = nssfbrec(x[0], x[1], k1, k2)
+    
+    return result
 
 
 if __name__ == '__main__':
