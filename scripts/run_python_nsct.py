@@ -8,8 +8,16 @@ from PIL import Image
 import pickle
 import time
 import os
+import sys
+
+# 添加项目根目录到 Python 路径
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from nsct_python.core import nsctdec, nsctrec
-from nsct_python.filters import dfilters
+
 
 print("=" * 70)
 print("Python 版本 - NSCT 分解和重建")
@@ -17,7 +25,8 @@ print("=" * 70)
 
 # 1. 加载图像
 print("\n1. 加载图像...")
-img = Image.open('test_image.jpg')
+img_path = os.path.join(project_root, 'test_image.jpg')
+img = Image.open(img_path)
 if img.mode == 'RGB':
     img = img.convert('L')
 img_array = np.array(img, dtype=np.float64)
