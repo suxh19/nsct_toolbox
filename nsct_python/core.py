@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.signal import convolve2d
-from typing import Union, Tuple, Optional
-from nsct_python.filters import efilter2
+from typing import Union, Tuple, Optional, List
+from nsct_python.filters import efilter2, dfilters, modulate2, parafilters, atrousfilters
 from nsct_python.utils import extend2, symext, upsample2df
 
 
@@ -667,6 +667,240 @@ def nsdfbrec(y: List[np.ndarray], dfilter: Union[str, dict]) -> np.ndarray:
     result = nssfbrec(x[0], x[1], k1, k2)
     
     return result
+
+
+def nsctdec(x: np.ndarray, levels: List[int], dfilt: str = 'dmaxflat7', 
+            pfilt: str = 'maxflat') -> List:
+    """
+    Nonsubsampled Contourlet Transform Decomposition.
+    
+    Decomposes the image using NSCT with pyramidal decomposition and 
+    directional filter banks. This is the main function for NSCT analysis.
+    Translation of nsctdec.m.
+    
+    Args:
+        x (np.ndarray): Input image (2D array).
+        levels (list): Vector of directional decomposition levels at each pyramidal level
+                      (from coarse to fine scale). If level is 0, only pyramid decomposition
+                      is performed without directional decomposition.
+        dfilt (str): Filter name for directional decomposition (default: 'dmaxflat7').
+                    See dfilters for available filters.
+        pfilt (str): Filter name for pyramidal decomposition (default: 'maxflat').
+                    See atrousfilters for available filters.
+    
+    Returns:
+        list: Cell vector of length len(levels) + 1, where:
+            - y[0]: Lowpass subband (coarsest scale)
+            - y[1] to y[len(levels)]: Bandpass directional subbands at each pyramidal level
+              Each y[i] (i > 0) is either:
+                - A list of directional subbands if levels[i-1] > 0
+                - A single bandpass image if levels[i-1] == 0
+    
+    Notes:
+        - Combines nsfbdec (pyramidal) and nsdfbdec (directional)
+        - Number of directional subbands at level i: 2^levels[i]
+        - Index convention follows MATLAB implementation
+    
+    Examples:
+        >>> x = np.random.rand(64, 64)
+        >>> # 2 pyramid levels with 2 and 3 directional levels
+        >>> levels = [2, 3]  
+        >>> y = nsctdec(x, levels, 'pkva', 'maxflat')
+        >>> len(y)
+        3
+        >>> # y[0]: lowpass, y[1]: 4 directional subbands, y[2]: 8 directional subbands
+    """
+    from nsct_python.filters import dfilters, atrousfilters, parafilters
+    from nsct_python.utils import modulate2
+    
+    # Input validation
+    if not isinstance(levels, (list, tuple, np.ndarray)):
+        raise TypeError('The decomposition levels shall be a list or array of integers')
+    
+    levels = np.array(levels, dtype=int)
+    if not np.all(levels == np.round(levels)):
+        raise ValueError('The decomposition levels shall be integers')
+    
+    if np.any(levels < 0):
+        raise ValueError('The decomposition levels shall be non-negative integers')
+    
+    # Get filters
+    # Get the directional filters for the critically sampled DFB
+    h1, h2 = dfilters(dfilt, 'd')
+    
+    # A scale is required for the nonsubsampled case
+    h1 = h1 / np.sqrt(2)
+    h2 = h2 / np.sqrt(2)
+    
+    # Generate the first-level fan filters by modulations
+    k1 = modulate2(h1, 'c')
+    k2 = modulate2(h2, 'c')
+    
+    # Obtain the parallelogram filters from the diamond filters
+    f1, f2 = parafilters(h1, h2)
+    
+    # Package filters for nsdfbdec
+    filters = {
+        'k1': k1,
+        'k2': k2,
+        'f1': f1,
+        'f2': f2
+    }
+    
+    # Get pyramid filters
+    h1_pyr, h2_pyr, g1_pyr, g2_pyr = atrousfilters(pfilt)
+    
+    # Number of levels
+    clevels = len(levels)
+    nIndex = clevels  # Index for output array position (Python 0-based)
+    
+    # Initialize the output
+    y = [None] * (clevels + 1)
+    
+    # Nonsubsampled pyramid decomposition
+    for i in range(clevels):
+        # Nonsubsampled pyramid decomposition
+        # Note: MATLAB uses i-1 for the level parameter (0-indexed level)
+        xlo, xhi = nsfbdec(x, h1_pyr, h2_pyr, i)
+        
+        # Check directional decomposition level (MATLAB: levels(nIndex-1))
+        if levels[nIndex - 1] > 0:
+            # Nonsubsampled DFB decomposition on the bandpass image
+            xhi_dir = nsdfbdec(xhi, filters, levels[nIndex - 1])
+            y[nIndex] = xhi_dir
+        else:
+            # Copy the result directly (no directional decomposition)
+            y[nIndex] = xhi
+        
+        # Update the index for the Nonsubsampled Pyramids
+        nIndex = nIndex - 1
+        
+        # Prepare for next iteration
+        x = xlo
+    
+    # The lowpass output
+    y[0] = x
+    
+    return y
+
+
+def nsctrec(y, dfilt='dmaxflat7', pfilt='maxflat'):
+    """
+    NSCTREC - Nonsubsampled Contourlet Reconstruction
+    
+    Reconstructs an image from its nonsubsampled contourlet decomposition.
+    This is the inverse operation of nsctdec().
+    
+    Parameters
+    ----------
+    y : list
+        A list of length n+1, where:
+        - y[0] is the lowpass subband (2D array)
+        - y[1:n+1] are the bandpass directional subbands, where each can be:
+          * A list of 2D arrays (directional subbands from DFB) if level > 0
+          * A single 2D array if level = 0 (no directional decomposition)
+    dfilt : str, optional
+        Filter name for the directional reconstruction step.
+        Default is 'dmaxflat7'. See dfilters() for available filters.
+    pfilt : str, optional
+        Filter name for the pyramidal reconstruction step.
+        Default is 'maxflat'. See atrousfilters() for available filters.
+    
+    Returns
+    -------
+    x : ndarray
+        Reconstructed image (2D array)
+    
+    Notes
+    -----
+    This function performs perfect reconstruction when used with nsctdec().
+    The reconstruction error should be on the order of machine precision (~1e-15).
+    
+    The reconstruction process:
+    1. Get directional filters and pyramid filters
+    2. For each pyramid level (from finest to coarsest):
+       a. Reconstruct directional subbands using nsdfbrec() if decomposed
+       b. Reconstruct pyramid level using nsfbrec()
+    3. Return the final reconstructed image
+    
+    Examples
+    --------
+    >>> import numpy as np
+    >>> x_orig = np.random.rand(64, 64)
+    >>> y = nsctdec(x_orig, [2, 3], 'pkva', 'maxflat')
+    >>> x_rec = nsctrec(y, 'pkva', 'maxflat')
+    >>> error = np.max(np.abs(x_orig - x_rec))
+    >>> print(f"Reconstruction error: {error}")  # Should be ~1e-15
+    
+    See Also
+    --------
+    nsctdec : Nonsubsampled contourlet decomposition
+    nsfbrec : Nonsubsampled filter bank reconstruction
+    nsdfbrec : Nonsubsampled directional filter bank reconstruction
+    atrousfilters : Atrous pyramid filters
+    dfilters : Directional filters
+    
+    References
+    ----------
+    .. [1] A. L. da Cunha, J. Zhou, and M. N. Do, "The Nonsubsampled Contourlet
+           Transform: Theory, Design, and Applications," IEEE Transactions on
+           Image Processing, vol. 15, no. 10, pp. 3089-3101, Oct. 2006.
+    """
+    # Get the directional filters for the DFB (use 'r' for reconstruction)
+    h1_dir, h2_dir = dfilters(dfilt, 'r')
+    
+    # Scale for the nonsubsampled case (MATLAB: h1 = h1./sqrt(2))
+    h1_dir = h1_dir / np.sqrt(2)
+    h2_dir = h2_dir / np.sqrt(2)
+    
+    # Generate filters for DFB reconstruction
+    # Create a dictionary with the required filter keys for nsdfbrec
+    k1 = modulate2(h1_dir, 'c')
+    k2 = modulate2(h2_dir, 'c')
+    f1, f2 = parafilters(h1_dir, h2_dir)
+    
+    filters = {
+        'k1': k1,
+        'k2': k2,
+        'f1': f1,
+        'f2': f2
+    }
+    
+    # Get pyramid filters (synthesis filters for reconstruction)
+    h1_pyr, h2_pyr, g1_pyr, g2_pyr = atrousfilters(pfilt)
+    
+    # Number of pyramid levels
+    n = len(y) - 1
+    
+    # Special case: no pyramid levels (just lowpass)
+    if n == 0:
+        return y[0]
+    
+    # Start with the lowpass subband
+    xlo = y[0]
+    
+    # Index for pyramid reconstruction (starts from n-1, counts down)
+    nIndex = n - 1
+    
+    # Reconstruct from coarsest to finest level
+    for i in range(n):
+        # Process the detail subbands
+        if isinstance(y[i + 1], list):
+            # Nonsubsampled DFB reconstruction (directional subbands)
+            xhi = nsdfbrec(y[i + 1], filters)
+        else:
+            # No DFB decomposition, copy directly (level was 0)
+            xhi = y[i + 1]
+        
+        # Nonsubsampled Pyramid reconstruction
+        # Combine lowpass and highpass to get reconstructed image
+        x = nsfbrec(xlo, xhi, g1_pyr, g2_pyr, nIndex)
+        
+        # Prepare for the next level
+        xlo = x
+        nIndex = nIndex - 1
+    
+    return x
 
 
 if __name__ == '__main__':
