@@ -175,8 +175,8 @@ class TestNsfbdec:
         """Test 10: Energy conservation check."""
         x = self.mat_data['x10']
         lev = int(self.mat_data['lev10'][0, 0])
-        energy_in_matlab = float(self.mat_data['energy_in'])
-        energy_out_matlab = float(self.mat_data['energy_out'])
+        energy_in_matlab = float(self.mat_data['energy_in'].item())
+        energy_out_matlab = float(self.mat_data['energy_out'].item())
         
         y0, y1 = nsfbdec(x, self.h0, self.h1, lev)
         

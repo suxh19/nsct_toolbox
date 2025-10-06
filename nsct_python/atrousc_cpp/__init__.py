@@ -6,23 +6,40 @@ operation used in the Nonsubsampled Contourlet Transform (NSCT).
 """
 
 import numpy as np
+import sys
+import os
 
 # Try to import the C++ extension
 CPP_AVAILABLE = False
 _cpp_import_error = None
+_atrousc_cpp = None
+
+# Add current directory to path to allow importing the compiled module
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
 
 try:
-    import atrousc_cpp as _cpp_module
-    _atrousc_cpp = _cpp_module.atrousc
-    CPP_AVAILABLE = True
-except ImportError as e:
+    # Import the compiled C++ extension module
+    # The module is in the same directory as this __init__.py
+    import importlib.util
+    module_name = 'atrousc_cpp'
+    
+    # Find the .pyd or .so file
+    pyd_files = [f for f in os.listdir(current_dir) if f.startswith('atrousc_cpp') and (f.endswith('.pyd') or f.endswith('.so'))]
+    
+    if pyd_files:
+        spec = importlib.util.spec_from_file_location(module_name, os.path.join(current_dir, pyd_files[0]))
+        if spec and spec.loader:
+            _cpp_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(_cpp_module)
+            _atrousc_cpp = _cpp_module.atrousc
+            CPP_AVAILABLE = True
+    else:
+        _cpp_import_error = Exception("Compiled module file (.pyd or .so) not found")
+        
+except Exception as e:
     _cpp_import_error = e
-    try:
-        from atrousc_cpp import atrousc as _atrousc_cpp
-        CPP_AVAILABLE = True
-        _cpp_import_error = None
-    except ImportError as e2:
-        _cpp_import_error = e2
 
 
 def atrousc(x: np.ndarray, h: np.ndarray, M: np.ndarray) -> np.ndarray:
