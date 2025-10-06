@@ -23,16 +23,17 @@ def _upsample_and_find_origin(f: torch.Tensor, mup: Union[int, float, torch.Tens
     taps_r, taps_c = torch.nonzero(f, as_tuple=True)
     tap_coords = torch.stack([taps_r, taps_c], dim=0).to(torch.long)
 
-    upsampled_coords = mup @ tap_coords
+    # CUDA不支持Long类型的矩阵乘法，转为float计算后再转回long
+    upsampled_coords = (mup.float() @ tap_coords.float()).long()
 
     orig_origin = (torch.tensor(f.shape, device=f.device) - 1) // 2
-    new_origin_coord = mup @ orig_origin
+    new_origin_coord = (mup.float() @ orig_origin.float()).long()
 
     min_coords, _ = torch.min(upsampled_coords, dim=1)
     max_coords, _ = torch.max(upsampled_coords, dim=1)
 
     new_size = max_coords - min_coords + 1
-    f_up = torch.zeros(tuple(new_size), dtype=f.dtype, device=f.device)
+    f_up = torch.zeros(tuple(new_size.tolist()), dtype=f.dtype, device=f.device)
 
     shifted_coords = upsampled_coords - min_coords.unsqueeze(1)
     f_up[shifted_coords[0, :], shifted_coords[1, :]] = f[taps_r, taps_c]
@@ -60,7 +61,7 @@ def _correlate_upsampled(x: torch.Tensor, f: torch.Tensor, mup: Any, is_rec: boo
     pad_left = f_up_origin[1].item()
     pad_right = (f_up.shape[1] - 1 - f_up_origin[1]).item()
 
-    x_ext = extend2(x, pad_top, pad_bottom, pad_left, pad_right)
+    x_ext = extend2(x, int(pad_top), int(pad_bottom), int(pad_left), int(pad_right))
 
     # Unsqueeze for conv2d: (H, W) -> (N, C_in, H, W)
     x_ext = x_ext.unsqueeze(0).unsqueeze(0)
