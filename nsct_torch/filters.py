@@ -313,7 +313,7 @@ def dfilters(fname: str, type: str = 'd', device='cpu') -> Tuple[torch.Tensor, t
 
     else:
         try:
-            wavelet = pywt.Wavelet(fname)
+            wavelet = pywt.Wavelet(fname)  # type: ignore
             if type == 'd':
                 h0 = torch.tensor(wavelet.dec_lo, dtype=torch.float64, device=device)
                 h1 = torch.tensor(wavelet.dec_hi, dtype=torch.float64, device=device)

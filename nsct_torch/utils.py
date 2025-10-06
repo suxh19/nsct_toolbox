@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from typing import Tuple
+from typing import Tuple, Optional
 
 def extend2(x: torch.Tensor, ru: int, rd: int, cl: int, cr: int, extmod: str = 'per') -> torch.Tensor:
     """
@@ -74,7 +74,7 @@ def upsample2df(h: torch.Tensor, power: int = 1) -> torch.Tensor:
     ho[::factor, ::factor] = h
     return ho
 
-def modulate2(x: torch.Tensor, mode: str = 'b', center: Tuple[int, int] = None) -> torch.Tensor:
+def modulate2(x: torch.Tensor, mode: str = 'b', center: Optional[Tuple[int, int]] = None) -> torch.Tensor:
     """
     2D modulation. Translation of modulate2.m.
 
