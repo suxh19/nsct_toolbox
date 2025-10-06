@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.signal import convolve2d
-from typing import Union, Tuple, Optional, List
+from typing import Union, Tuple, Optional, List, Any
 from nsct_python.filters import efilter2, dfilters, modulate2, parafilters, atrousfilters
 from nsct_python.utils import extend2, symext, upsample2df
 
@@ -497,7 +497,7 @@ def nsdfbdec(x: np.ndarray, dfilter, clevels: int = 0):
     x1, x2 = nssfbdec(x, k1, k2)
     
     # Convolution with upsampled filters
-    y = [None] * 4
+    y: List[Union[np.ndarray, None]] = [None] * 4
     y[0], y[1] = nssfbdec(x1, k1, k2, q1)
     y[2], y[3] = nssfbdec(x2, k1, k2, q1)
     
@@ -505,7 +505,7 @@ def nsdfbdec(x: np.ndarray, dfilter, clevels: int = 0):
     for l in range(3, clevels + 1):
         # Allocate space for the new subband outputs
         y_old = y
-        y = [None] * (2 ** l)
+        y: List[Union[np.ndarray, None]] = [None] * (2 ** l)
         
         # The first half channels
         for k in range(1, 2 ** (l - 2) + 1):
@@ -669,7 +669,7 @@ def nsdfbrec(y: List[np.ndarray], dfilter: Union[str, dict]) -> np.ndarray:
     return result
 
 
-def nsctdec(x: np.ndarray, levels: List[int], dfilt: str = 'dmaxflat7', 
+def nsctdec(x: np.ndarray, levels: Union[List[int], np.ndarray], dfilt: str = 'dmaxflat7', 
             pfilt: str = 'maxflat') -> List:
     """
     Nonsubsampled Contourlet Transform Decomposition.
@@ -755,7 +755,7 @@ def nsctdec(x: np.ndarray, levels: List[int], dfilt: str = 'dmaxflat7',
     nIndex = clevels  # Index for output array position (Python 0-based)
     
     # Initialize the output
-    y = [None] * (clevels + 1)
+    y: List[Any] = [None] * (clevels + 1)
     
     # Nonsubsampled pyramid decomposition
     for i in range(clevels):
