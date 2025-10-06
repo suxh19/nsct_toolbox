@@ -206,7 +206,7 @@ class TestNsctdecEdgeCases:
         x = np.random.rand(64, 64)
         
         with pytest.raises(TypeError):
-            nsctdec(x, "invalid", 'pkva', 'maxflat')
+            nsctdec(x, "invalid", 'pkva', 'maxflat')  # type: ignore[reportArgumentType]
     
     def test_invalid_levels_negative(self):
         """Test with negative levels."""
@@ -221,7 +221,7 @@ class TestNsctdecEdgeCases:
         x = np.random.rand(64, 64)
         
         with pytest.raises(ValueError, match="integers"):
-            nsctdec(x, [1.5, 2], 'pkva', 'maxflat')
+            nsctdec(x, [1.5, 2], 'pkva', 'maxflat')  # type: ignore[reportArgumentType]
     
     def test_single_level_decomposition(self):
         """Test with single pyramid level."""
