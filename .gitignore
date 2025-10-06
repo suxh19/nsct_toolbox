@@ -28,3 +28,5 @@ build/
 Thumbs.db
 WARP.md
 output/
+
+data/

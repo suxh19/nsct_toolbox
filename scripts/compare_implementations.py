@@ -43,10 +43,29 @@ print("=" * 80)
 if len(sys.argv) > 1:
     param_folder = sys.argv[1]
 else:
-    # 默认参数
-    levels = [2, 3]
-    dfilt = 'dmaxflat7'
-    pfilt = 'maxflat'
+    # 尝试从 nsct_params.json 读取参数
+    params_file = os.path.join('scripts', 'nsct_params.json')
+    if os.path.exists(params_file):
+        import json
+        try:
+            with open(params_file, 'r', encoding='utf-8') as f:
+                params = json.load(f)
+            levels = params.get('levels', [2, 3])
+            dfilt = params.get('dfilt', 'dmaxflat7')
+            pfilt = params.get('pfilt', 'maxflat')
+            print(f"从配置文件读取参数: {params_file}")
+        except Exception as e:
+            print(f"读取配置文件失败，使用默认参数: {e}")
+            levels = [2, 3]
+            dfilt = 'dmaxflat7'
+            pfilt = 'maxflat'
+    else:
+        # 默认参数
+        levels = [2, 3]
+        dfilt = 'dmaxflat7'
+        pfilt = 'maxflat'
+        print("使用默认参数")
+    
     levels_str = '_'.join(map(str, levels))
     param_folder = f'levels_{levels_str}_{dfilt}_{pfilt}'
 
@@ -102,9 +121,19 @@ try:
         
         # 读取参数
         mat_results['results']['parameters'] = {}
-        mat_results['results']['parameters']['levels'] = [int(x.item()) for x in f['results']['parameters']['levels'][:]]  # type: ignore
-        mat_results['results']['parameters']['dfilt'] = ''.join(chr(int(c.item())) for c in f['results']['parameters']['dfilt'][:])  # type: ignore
-        mat_results['results']['parameters']['pfilt'] = ''.join(chr(int(c.item())) for c in f['results']['parameters']['pfilt'][:])  # type: ignore
+        # 处理 levels 数组 - 可能是多维的
+        levels_data = np.array(f['results']['parameters']['levels'])  # type: ignore
+        if levels_data.ndim == 1:
+            mat_results['results']['parameters']['levels'] = [int(x) for x in levels_data]
+        else:
+            mat_results['results']['parameters']['levels'] = [int(x) for x in levels_data.flatten()]
+        
+        # 读取字符串参数
+        dfilt_data = np.array(f['results']['parameters']['dfilt'][:])  # type: ignore
+        mat_results['results']['parameters']['dfilt'] = ''.join(chr(int(c)) for c in dfilt_data.flatten())
+        
+        pfilt_data = np.array(f['results']['parameters']['pfilt'][:])  # type: ignore
+        mat_results['results']['parameters']['pfilt'] = ''.join(chr(int(c)) for c in pfilt_data.flatten())
         
         # 读取时间信息
         mat_results['results']['timing'] = {}

@@ -34,9 +34,28 @@ print(f"   图像尺寸: {img_array.shape}")
 print(f"   像素值范围: [{img_array.min():.2f}, {img_array.max():.2f}]")
 
 # 2. 设置参数
-levels = [2, 3]  # 2个金字塔层级，每层分别进行2和3级方向分解
-dfilt = 'dmaxflat7'  # 方向滤波器
-pfilt = 'maxflat'  # 金字塔滤波器
+# 尝试从 nsct_params.json 读取参数
+import json
+params_file = os.path.join(script_dir, 'nsct_params.json')
+if os.path.exists(params_file):
+    try:
+        with open(params_file, 'r', encoding='utf-8') as f:
+            params = json.load(f)
+        levels = params.get('levels', [2, 3])
+        dfilt = params.get('dfilt', 'dmaxflat7')
+        pfilt = params.get('pfilt', 'maxflat')
+        print(f"\n从配置文件读取参数: {params_file}")
+    except Exception as e:
+        print(f"\n读取配置文件失败，使用默认参数: {e}")
+        levels = [2, 3]
+        dfilt = 'dmaxflat7'
+        pfilt = 'maxflat'
+else:
+    # 默认参数
+    levels = [2, 3]  # 2个金字塔层级，每层分别进行2和3级方向分解
+    dfilt = 'dmaxflat7'  # 方向滤波器
+    pfilt = 'maxflat'  # 金字塔滤波器
+    print("\n使用默认参数")
 
 # 创建输出文件夹结构: output/levels_X_Y_dfilt_pfilt/python/
 levels_str = '_'.join(map(str, levels))
