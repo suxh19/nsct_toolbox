@@ -10,12 +10,18 @@
 
 ## 性能对比
 
-| 实现方式 | 256x256 图像 | 512x512 图像 | 1024x1024 图像 |
-|---------|------------|------------|---------------|
-| Python  | ~460ms     | ~2100ms    | ~9000ms       |
-| C++     | ~1.5ms     | ~7.6ms     | ~40ms         |
+| 实现方式 | 256x256 图像 | 512x512 图像 | 1024x1024 图像 | 加速比 |
+|---------|------------|------------|---------------|--------|
+| Python  | ~478ms     | ~2172ms    | ~9000ms       | 1.0× |
+| C++     | ~1.63ms    | ~8.19ms    | ~43.5ms       | **220-315×** |
 
-*基准测试环境: Intel Core i7, Windows 10*
+*基准测试环境: Windows, Python 3.13, 测试日期: 2025年10月6日*
+
+### 详细性能数据
+
+完整的性能测试结果请参见:
+- [TEST_REPORT.md](TEST_REPORT.md) - 详细测试报告
+- [PYTHON_IMPLEMENTATION_SUMMARY.md](PYTHON_IMPLEMENTATION_SUMMARY.md) - Python 实现总结
 
 ## 安装要求
 
@@ -120,7 +126,31 @@ else:
 
 ## 性能基准测试
 
-创建基准测试脚本来比较性能：
+### 方法 1: 运行完整测试套件
+
+```bash
+cd nsct_python/atrousc_cpp
+python benchmark.py
+```
+
+这将运行:
+- ✅ 功能正确性测试
+- ✅ 数值精度对比 (C++ vs Python)
+- ✅ 输出大小分析
+- ✅ 性能对比测试
+- ✅ 不同图像大小的性能测试
+- ✅ 不同滤波器大小的性能测试
+
+### 方法 2: 快速测试
+
+```bash
+cd nsct_python/atrousc_cpp
+python quick_test.py
+```
+
+快速验证 C++ 和 Python 实现的正确性和性能差异。
+
+### 方法 3: 自定义测试脚本
 
 ```python
 import numpy as np
@@ -138,25 +168,19 @@ M = np.array([[4, 0], [0, 4]])
 for size in sizes:
     x = np.random.rand(*size)
     
-    # Python 实现
-    start = time.time()
-    result_py = atrousc(x, h, M, use_cpp=False)
-    time_py = time.time() - start
-    
     # C++ 实现
     start = time.time()
-    result_cpp = atrousc(x, h, M, use_cpp=True)
-    time_cpp = time.time() - start
+    result = atrousc(x, h, M)
+    time_cpp = (time.time() - start) * 1000
     
-    # 验证结果一致性
-    max_diff = np.max(np.abs(result_py - result_cpp))
-    
-    print(f"\n图像大小: {size}")
-    print(f"Python 时间: {time_py*1000:.2f} ms")
-    print(f"C++ 时间: {time_cpp*1000:.2f} ms")
-    print(f"加速比: {time_py/time_cpp:.2f}x")
-    print(f"最大误差: {max_diff:.2e}")
+    print(f"图像大小: {size}, 时间: {time_cpp:.2f} ms")
 ```
+
+### 测试报告
+
+详细的测试结果和分析请参见:
+- **[TEST_REPORT.md](TEST_REPORT.md)** - 完整的测试报告，包含所有测试数据
+- **[PYTHON_IMPLEMENTATION_SUMMARY.md](PYTHON_IMPLEMENTATION_SUMMARY.md)** - Python 实现的详细分析和对比
 
 ## 故障排除
 
