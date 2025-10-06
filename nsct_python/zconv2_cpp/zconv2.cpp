@@ -18,8 +18,8 @@
 
 namespace py = pybind11;
 
-/*MACRO for converting positions to linear index (column-major)*/
-#define LINPOS(row, col, rowlen) ((col) * (rowlen) + (row))
+/*MACRO for converting positions to linear index (row-major for NumPy)*/
+#define LINPOS(row, col, collen) ((row) * (collen) + (col))
 
 /**
  * Performs 2D convolution with upsampled filter using periodic boundary.
@@ -66,9 +66,11 @@ py::array_t<double> zconv2_cpp(
     
     // Extract upsampling matrix elements
     // mup = [[M0, M1], [M2, M3]]
+    // NumPy uses row-major (C-style) storage by default:
+    // For 2x2 matrix [[a,b],[c,d]], memory layout is: a, b, c, d
     const int M0 = static_cast<int>(mup_ptr[0]);  // mup[0,0]
-    const int M1 = static_cast<int>(mup_ptr[2]);  // mup[1,0] - column-major!
-    const int M2 = static_cast<int>(mup_ptr[1]);  // mup[0,1]
+    const int M1 = static_cast<int>(mup_ptr[1]);  // mup[0,1]
+    const int M2 = static_cast<int>(mup_ptr[2]);  // mup[1,0]
     const int M3 = static_cast<int>(mup_ptr[3]);  // mup[1,1]
     
     // Calculate upsampled filter dimensions
@@ -103,35 +105,39 @@ py::array_t<double> zconv2_cpp(
                 // Loop over filter columns
                 for (int l2 = 0; l2 < f_col_len; ++l2) {
                     // Accumulate: x[index_x, index_y] * h[l1, l2]
-                    sum += x_ptr[LINPOS(index_x, index_y, s_row_len)] * 
-                           h_ptr[LINPOS(l1, l2, f_row_len)];
+                    sum += x_ptr[LINPOS(index_x, index_y, s_col_len)] * 
+                           h_ptr[LINPOS(l1, l2, f_col_len)];
                     
                     // Step through input with M2, M3 (periodic boundary)
                     index_x -= M2;
                     if (index_x < 0)
                         index_x += s_row_len;
-                    if (index_x >= s_row_len)  // Extra condition for negatives
+                    if (index_x >= s_row_len)
                         index_x -= s_row_len;
                     
                     index_y -= M3;
                     if (index_y < 0)
                         index_y += s_col_len;
+                    if (index_y >= s_col_len)
+                        index_y -= s_col_len;
                 }
                 
                 // Step for outer filter loop with M0, M1
                 out_index_x -= M0;
                 if (out_index_x < 0)
                     out_index_x += s_row_len;
+                if (out_index_x >= s_row_len)
+                    out_index_x -= s_row_len;
                 
                 out_index_y -= M1;
                 if (out_index_y < 0)
                     out_index_y += s_col_len;
-                if (out_index_y >= s_col_len)  // Extra condition for negatives
+                if (out_index_y >= s_col_len)
                     out_index_y -= s_col_len;
             }
             
             // Store result
-            out_ptr[LINPOS(n1, n2, s_row_len)] = sum;
+            out_ptr[LINPOS(n1, n2, s_col_len)] = sum;
             
             // Update mn2 for next iteration
             mn2++;
