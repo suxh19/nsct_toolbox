@@ -85,6 +85,8 @@ class TestEfilter2:
         # 验证数值
         assert_values_close(np_output, torch_output, rtol=1e-8, atol=1e-10,
                           message=f"efilter2 数值不匹配 (x_shape={x_shape}, f_shape={f_shape})")
+        
+        # 注：efilter2 涉及卷积运算，有浮点累积误差，不能完全相等
     
     @pytest.mark.parametrize("shift", [[0, 0], [1, 0], [0, 1], [1, 1]])
     def test_efilter2_with_shift(self, shift, random_seed):
@@ -101,6 +103,8 @@ class TestEfilter2:
         
         assert_values_close(np_output, torch_output, rtol=1e-8, atol=1e-10,
                           message=f"efilter2 with shift 数值不匹配 (shift={shift})")
+        
+        # 注：efilter2 涉及卷积运算，有浮点累积误差，不能完全相等
 
 
 class TestDmaxflat:
@@ -185,6 +189,8 @@ class TestMctrans:
         # 验证数值
         assert_values_close(np_output, torch_output, rtol=1e-8, atol=1e-10,
                           message=f"mctrans 数值不匹配 (b_length={b_length}, t_length={t_length})")
+        
+        # 注：mctrans 涉及多次卷积迭代，有浮点累积误差，不能完全相等
 
 
 class TestLdfilter:
@@ -265,6 +271,14 @@ class TestParafilters:
                                message="parafilters f1 列表数值不匹配")
         assert_list_values_close(np_f2_list, torch_f2_list, rtol=1e-10, atol=1e-12,
                                message="parafilters f2 列表数值不匹配")
+        
+        # parafilters 是确定性算法，应该产生完全相同的结果
+        for i, (np_f, torch_f) in enumerate(zip(np_f1_list, torch_f1_list)):
+            assert_elementwise_equal(np_f, torch_f, 
+                                    f"parafilters f1[{i}] 不完全相等")
+        for i, (np_f, torch_f) in enumerate(zip(np_f2_list, torch_f2_list)):
+            assert_elementwise_equal(np_f, torch_f, 
+                                    f"parafilters f2[{i}] 不完全相等")
 
 
 if __name__ == "__main__":
