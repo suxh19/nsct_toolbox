@@ -111,8 +111,14 @@ def nsfbdec(x: torch.Tensor, h0: torch.Tensor, h1: torch.Tensor,
         # Use PyTorch conv2d
         x_ext_h0_4d = x_ext_h0.unsqueeze(0).unsqueeze(0)
         x_ext_h1_4d = x_ext_h1.unsqueeze(0).unsqueeze(0)
-        h0_4d = h0.unsqueeze(0).unsqueeze(0)
-        h1_4d = h1.unsqueeze(0).unsqueeze(0)
+        
+        # Important: PyTorch's conv2d performs true convolution (flips kernel),
+        # while NumPy's convolve2d performs correlation (no flip).
+        # To match NumPy behavior, we need to flip the filters.
+        h0_flipped = torch.flip(h0, [0, 1])
+        h1_flipped = torch.flip(h1, [0, 1])
+        h0_4d = h0_flipped.unsqueeze(0).unsqueeze(0)
+        h1_4d = h1_flipped.unsqueeze(0).unsqueeze(0)
         
         y0 = F.conv2d(x_ext_h0_4d, h0_4d, padding=0).squeeze()
         y1 = F.conv2d(x_ext_h1_4d, h1_4d, padding=0).squeeze()
@@ -166,8 +172,14 @@ def nsfbrec(y0: torch.Tensor, y1: torch.Tensor,
         # Convolve and sum
         y0_ext_4d = y0_ext.unsqueeze(0).unsqueeze(0)
         y1_ext_4d = y1_ext.unsqueeze(0).unsqueeze(0)
-        g0_4d = g0.unsqueeze(0).unsqueeze(0)
-        g1_4d = g1.unsqueeze(0).unsqueeze(0)
+        
+        # Important: PyTorch's conv2d performs true convolution (flips kernel),
+        # while NumPy's convolve2d performs correlation (no flip).
+        # To match NumPy behavior, we need to flip the filters.
+        g0_flipped = torch.flip(g0, [0, 1])
+        g1_flipped = torch.flip(g1, [0, 1])
+        g0_4d = g0_flipped.unsqueeze(0).unsqueeze(0)
+        g1_4d = g1_flipped.unsqueeze(0).unsqueeze(0)
         
         x = F.conv2d(y0_ext_4d, g0_4d, padding=0).squeeze() + \
             F.conv2d(y1_ext_4d, g1_4d, padding=0).squeeze()

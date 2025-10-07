@@ -37,7 +37,11 @@ def mctrans(b: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
     
     for i in range(2, n + 1):
         # Full convolution using conv2d
-        t_4d = t.unsqueeze(0).unsqueeze(0)
+        # Important: PyTorch's conv2d performs true convolution (flips kernel),
+        # while NumPy's convolve2d performs correlation (no flip).
+        # To match NumPy behavior, we need to flip the filter.
+        t_flipped = torch.flip(t, [0, 1])
+        t_4d = t_flipped.unsqueeze(0).unsqueeze(0)
         P1_4d = P1.unsqueeze(0).unsqueeze(0)
         
         P2 = 2 * F.conv2d(

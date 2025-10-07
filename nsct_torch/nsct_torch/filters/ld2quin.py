@@ -44,7 +44,13 @@ def ld2quin(beta: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     # Use torch.nn.functional.conv2d for 2D convolution
     # PyTorch conv2d expects (N, C, H, W) format
     h_4d = h.unsqueeze(0).unsqueeze(0)
-    h0_rot_4d = torch.rot90(h0, 2).unsqueeze(0).unsqueeze(0)
+    h0_rot = torch.rot90(h0, 2)
+    
+    # Important: PyTorch's conv2d performs true convolution (flips kernel),
+    # while NumPy's convolve2d performs correlation (no flip).
+    # To match NumPy behavior, we need to flip the filter.
+    h0_rot_flipped = torch.flip(h0_rot, [0, 1])
+    h0_rot_4d = h0_rot_flipped.unsqueeze(0).unsqueeze(0)
     
     # Full convolution
     h1 = -torch.nn.functional.conv2d(

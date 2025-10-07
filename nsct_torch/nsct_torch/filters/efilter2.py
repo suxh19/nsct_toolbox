@@ -46,7 +46,12 @@ def efilter2(x: torch.Tensor, f: torch.Tensor, extmod: str = 'per',
     # Use PyTorch conv2d for filtering
     # conv2d expects (N, C, H, W) format
     xext_4d = xext.unsqueeze(0).unsqueeze(0)
-    f_4d = f.unsqueeze(0).unsqueeze(0)
+    
+    # Important: PyTorch's conv2d performs true convolution (flips kernel),
+    # while NumPy's convolve2d performs correlation (no flip).
+    # To match NumPy behavior, we need to flip the filter.
+    f_flipped = torch.flip(f, [0, 1])
+    f_4d = f_flipped.unsqueeze(0).unsqueeze(0)
     
     # Valid convolution (no padding)
     y = F.conv2d(xext_4d, f_4d, padding=0).squeeze()
