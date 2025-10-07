@@ -5,6 +5,18 @@ import numpy as np
 import torch
 import pytest
 
+
+import os
+import sys
+
+# 将 nsct_python 和 nsct_torch 目录添加到路径
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+nsct_python_dir = os.path.join(parent_dir, 'nsct_python')
+nsct_torch_dir = os.path.join(parent_dir, 'nsct_torch')
+sys.path.insert(0, nsct_python_dir)
+sys.path.insert(0, nsct_torch_dir)
+
 from nsct_python import core as np_core, filters as np_filters
 from tests.test_helpers import (
     assert_shape_equal, assert_values_close,
