@@ -68,7 +68,12 @@ print(f"   金字塔层级: {len(levels)}")
 print(f"   方向分解层级: {levels}")
 print(f"   方向滤波器: {dfilt}")
 print(f"   金字塔滤波器: {pfilt}")
-print(f"   预计子带数: 1个低频 + {2**levels[0]}个方向(尺度1) + {2**levels[1]}个方向(尺度2)")
+
+# 动态构建预计子带数描述
+subband_desc = "1个低频"
+for i, level in enumerate(levels):
+    subband_desc += f" + {2**level}个方向(尺度{i})"
+print(f"   预计子带数: {subband_desc}")
 
 # 3. NSCT 分解
 print("\n3. 执行 NSCT 分解...")

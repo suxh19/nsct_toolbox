@@ -1,5 +1,5 @@
 {
-    "levels": [1, 1],
+    "levels": [1],
     "dfilt": "dmaxflat7",
     "pfilt": "maxflat"
 }
