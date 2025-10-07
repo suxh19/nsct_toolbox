@@ -1,8 +1,8 @@
 import numpy as np
 from scipy.signal import convolve2d
-from typing import Union, Tuple, Optional, List, Any
+from typing import Union, Tuple, List, Any
 from nsct_python.filters import efilter2, dfilters, modulate2, parafilters, atrousfilters
-from nsct_python.utils import extend2, symext, upsample2df
+from nsct_python.utils import symext, upsample2df
 
 # Import C++ implementation of zconv2
 from nsct_python.zconv2_cpp import zconv2 as _zconv2_cpp
