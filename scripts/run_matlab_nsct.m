@@ -3,8 +3,12 @@
 
 clear; clc;
 
+% 获取脚本所在目录和项目根目录
+script_dir = fileparts(mfilename('fullpath'));
+project_root = fileparts(script_dir);
+
 % 添加 nsct_matlab 目录到路径
-addpath('nsct_matlab');
+addpath(fullfile(project_root, 'nsct_matlab'));
 
 fprintf('======================================================================\n');
 fprintf('MATLAB 版本 - NSCT 分解和重建\n');
@@ -12,7 +16,8 @@ fprintf('======================================================================\
 
 %% 1. 加载图像
 fprintf('1. 加载图像...\n');
-img = imread('test_image.jpg');
+img_path = fullfile(project_root, 'test_image.jpg');
+img = imread(img_path);
 if size(img, 3) == 3
     img = rgb2gray(img);
 end
@@ -22,7 +27,7 @@ fprintf('   像素值范围: [%.2f, %.2f]\n', min(img(:)), max(img(:)));
 
 %% 2. 设置参数
 % 尝试从 nsct_params.json 读取参数
-params_file = fullfile('scripts', 'nsct_params.json');
+params_file = fullfile(script_dir, 'nsct_params.json');
 if exist(params_file, 'file')
     try
         fid = fopen(params_file, 'r');
@@ -66,7 +71,7 @@ end
 
 % 创建输出文件夹结构: output/levels_X_Y_dfilt_pfilt/matlab/
 levels_str = strjoin(arrayfun(@num2str, levels, 'UniformOutput', false), '_');
-output_dir = fullfile('output', sprintf('levels_%s_%s_%s', levels_str, dfilt, pfilt), 'matlab');
+output_dir = fullfile(project_root, 'output', sprintf('levels_%s_%s_%s', levels_str, dfilt, pfilt), 'matlab');
 if ~exist(output_dir, 'dir')
     mkdir(output_dir);
 end
@@ -77,8 +82,13 @@ fprintf('   金字塔层级: %d\n', length(levels));
 fprintf('   方向分解层级: [%s]\n', num2str(levels));
 fprintf('   方向滤波器: %s\n', dfilt);
 fprintf('   金字塔滤波器: %s\n', pfilt);
-fprintf('   预计子带数: 1个低频 + %d个方向(尺度1) + %d个方向(尺度2)\n', ...
-    2^levels(1), 2^levels(2));
+
+% 动态构建预计子带数描述
+subband_desc = '1个低频';
+for i = 1:length(levels)
+    subband_desc = sprintf('%s + %d个方向(尺度%d)', subband_desc, 2^levels(i), i-1);
+end
+fprintf('   预计子带数: %s\n', subband_desc);
 
 %% 3. NSCT 分解
 fprintf('\n3. 执行 NSCT 分解...\n');
