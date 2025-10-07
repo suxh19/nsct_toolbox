@@ -416,6 +416,10 @@ def nsdfbrec(y: List[np.ndarray], dfilter: Union[str, dict]) -> np.ndarray:
     from nsct_python.filters import dfilters, parafilters
     from nsct_python.utils import modulate2
     
+    # Check if y is empty
+    if len(y) == 0:
+        raise ValueError('Number of subbands must be a power of 2')
+    
     # Determine clevels from number of subbands
     clevels = int(np.log2(len(y)))
     if 2**clevels != len(y):
