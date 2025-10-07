@@ -32,6 +32,8 @@ if platform.system() == 'Windows':
         '/O2',           # Optimize for speed
         '/fp:fast',      # Fast floating-point model
         '/std:c++17',    # C++17 standard
+        '/openmp',       # Enable OpenMP multi-threading
+        '/arch:AVX2',    # Enable AVX2 vectorization
         '/wd4819',       # Disable warning C4819 (code page encoding)
     ]
             
@@ -39,10 +41,12 @@ elif platform.system() == 'Linux' or platform.system() == 'Darwin':
     # GCC/Clang compiler flags
     extra_compile_args = [
         '-O3',                  # Maximum optimization
-        '-march=native',        # Optimize for current CPU
+        '-march=native',        # Optimize for current CPU (includes AVX2 if available)
         '-ffast-math',          # Fast math operations
+        '-fopenmp',             # Enable OpenMP multi-threading
         '-std=c++17',           # C++17 standard
     ]
+    extra_link_args = ['-fopenmp']  # Link OpenMP runtime
 
 
 # Define the extension module

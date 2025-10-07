@@ -14,6 +14,10 @@
 #include <algorithm>
 #include <cmath>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 namespace py = pybind11;
 
 /**
@@ -98,6 +102,8 @@ py::array_t<double> atrousc_cpp(
     
     // Main convolution loop - matching Python implementation exactly
     // Python loops over columns first (n1), then rows (n2)
+    // Parallelize outer loop for performance (threshold to avoid overhead on small images)
+    #pragma omp parallel for schedule(static) if(O_cols * O_rows > 1024)
     for (int n1 = 0; n1 < O_cols; ++n1) {  // Column loop (matches Python)
         for (int n2 = 0; n2 < O_rows; ++n2) {  // Row loop (matches Python)
             double total = 0.0;

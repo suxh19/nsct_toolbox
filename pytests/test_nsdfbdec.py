@@ -117,8 +117,8 @@ class TestNsdfbdec:
         """Test 7: Energy conservation check."""
         x = self.mat_data['x7']
         clevels = int(self.mat_data['clevels7'][0, 0])
-        energy_in_matlab = float(self.mat_data['energy_in'])
-        energy_out_matlab = float(self.mat_data['energy_out'])
+        energy_in_matlab = self.mat_data['energy_in'].item()
+        energy_out_matlab = self.mat_data['energy_out'].item()
         
         y = nsdfbdec(x, 'pkva', clevels)
         

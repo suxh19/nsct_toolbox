@@ -16,6 +16,10 @@
 #include <algorithm>
 #include <cmath>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 namespace py = pybind11;
 
 /*MACRO for converting positions to linear index (row-major for NumPy)*/
@@ -85,11 +89,16 @@ py::array_t<double> zconv2_cpp(
     // Initialize
     const int start1 = new_f_row_len / 2;
     const int start2 = new_f_col_len / 2;
-    int mn1 = start1 % s_row_len;
-    int mn2_save = start2 % s_col_len;
+    const int mn1_init = start1 % s_row_len;
+    const int mn2_save = start2 % s_col_len;
     
-    // Main convolution loop
+    // Main convolution loop - parallelized over rows (n1) for performance
+    // Each thread works on independent rows, writing to separate output locations
+    // This ensures deterministic results (no race conditions)
+    #pragma omp parallel for schedule(static) if(s_row_len * s_col_len > 1024)
     for (int n1 = 0; n1 < s_row_len; ++n1) {
+        // Each thread computes its own mn1 based on row index
+        int mn1 = (mn1_init + n1) % s_row_len;
         int mn2 = mn2_save;
         
         for (int n2 = 0; n2 < s_col_len; ++n2) {
@@ -144,11 +153,6 @@ py::array_t<double> zconv2_cpp(
             if (mn2 >= s_col_len)
                 mn2 -= s_col_len;
         }
-        
-        // Update mn1 for next row
-        mn1++;
-        if (mn1 >= s_row_len)
-            mn1 -= s_row_len;
     }
     
     return result;
