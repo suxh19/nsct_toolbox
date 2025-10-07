@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.signal import convolve2d
+from scipy.signal import convolve2d, fftconvolve
 from typing import Tuple, List, Optional
 from nsct_python.utils import extend2, qupz, modulate2, resampz
 
@@ -81,9 +81,19 @@ def efilter2(x: np.ndarray, f: np.ndarray, extmod: str = 'per', shift: Optional[
                    int(np.ceil(sf[1]) - shift[1]),
                    extmod)
 
-    # Convolution and keep the central part that has the same size as the input
-    # The MATLAB code uses conv2, so we use convolve2d directly.
-    return convolve2d(xext, f, 'valid')
+    # 自适应选择 direct 或 FFT 卷积：
+    # - 大核或大图使用 FFT 卷积以提升性能；
+    # - 小核/小图保持 direct 以避免 FFT 开销。
+    H, W = xext.shape
+    Kh, Kw = f.shape
+    use_fft = (max(Kh, Kw) >= 31) or (H >= 512 and W >= 512)
+
+    if use_fft:
+        y = fftconvolve(xext, f, mode='valid')
+    else:
+        y = convolve2d(xext, f, mode='valid')
+
+    return y
 
 def dmaxflat(N: int, d: float = 0.0) -> np.ndarray:
     """
