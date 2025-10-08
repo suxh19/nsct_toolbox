@@ -66,15 +66,17 @@ py::array_t<double> atrousc_cpp(
         M0 = M3 = static_cast<int>(M_ptr[0]);
     } else if (M_buf.ndim == 2 && M_buf.shape[0] == 2 && M_buf.shape[1] == 2) {
         // 2x2 matrix case - extract diagonal elements
-        M0 = static_cast<int>(M_ptr[0]);      // M[0,0]
-        M3 = static_cast<int>(M_ptr[3]);      // M[1,1]
+        // NOTE: Swapped to fix semantic bug - M0 is used for columns, M3 for rows
+        M0 = static_cast<int>(M_ptr[3]);      // M[1,1] - column upsampling
+        M3 = static_cast<int>(M_ptr[0]);      // M[0,0] - row upsampling
     } else {
         throw std::runtime_error("M must be a scalar or 2x2 matrix");
     }
     
-    // Calculate output dimensions (matching Python implementation)
-    const int O_rows = S_rows - M0 * F_rows + 1;
-    const int O_cols = S_cols - M3 * F_cols + 1;
+    // Calculate output dimensions
+    // Note: M0 is used for columns, M3 for rows (semantically corrected)
+    const int O_rows = S_rows - M3 * F_rows + 1;
+    const int O_cols = S_cols - M0 * F_cols + 1;
     
     // Handle edge case
     if (O_rows <= 0 || O_cols <= 0) {
