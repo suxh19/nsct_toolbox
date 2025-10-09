@@ -60,7 +60,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dtype",
         choices=("float32", "float64"),
-        default="float32",
+        default="float64",
         help="Floating point precision to use for both backends (default: %(default)s).",
     )
     parser.add_argument(
