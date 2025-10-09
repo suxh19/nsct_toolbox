@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from typing import Optional
 
 
 def extend2(x, ru, rd, cl, cr, extmod='per'):
@@ -57,22 +58,30 @@ def extend2(x, ru, rd, cl, cr, extmod='per'):
     raise ValueError(f"Invalid extension mode: {extmod}")
 
 
-def _reflect_indices(length: int, pad: int, side: str, device: torch.device) -> torch.Tensor:
+def _reflect_indices(
+    length: int,
+    pad: int,
+    side: str,
+    device: torch.device,
+    dtype: Optional[torch.dtype] = None,
+) -> torch.Tensor:
     """
     Generate reflection indices for symmetric padding. Handles arbitrarily large
     padding values by repeatedly mirroring the borders, matching MATLAB's
     symmetric extension semantics.
     """
+    dtype = torch.float32 if dtype is None else dtype
+
     if pad <= 0:
-        return torch.empty(0, dtype=torch.long, device=device)
+        return torch.empty(0, dtype=dtype, device=device)
 
     if length <= 0:
         raise ValueError("Input length must be positive for symmetric extension")
 
     if side == "left":
-        idx = torch.arange(-pad, 0, device=device)
+        idx = torch.arange(-pad, 0, device=device, dtype=dtype)
     elif side == "right":
-        idx = torch.arange(length, length + pad, device=device)
+        idx = torch.arange(length, length + pad, device=device, dtype=dtype)
     else:
         raise ValueError("side must be 'left' or 'right'")
 
@@ -82,15 +91,22 @@ def _reflect_indices(length: int, pad: int, side: str, device: torch.device) -> 
     period = 2 * length
     idx_mod = torch.remainder(idx, period)
     reflected = torch.where(idx_mod < length, idx_mod, period - idx_mod - 1)
-    return reflected.to(torch.long)
+    return reflected.to(dtype)
 
 
-def symext(x, h, shift):
+def symext(x, h, shift, *, index_dtype: Optional[torch.dtype] = None):
     """
     Symmetric extension for image x with filter h (PyTorch translation).
 
     This implementation mirrors the MATLAB behaviour even when the requested
     extension exceeds the signal length by repeatedly reflecting the borders.
+
+    Args:
+        x (torch.Tensor): Input signal.
+        h (torch.Tensor): Filter kernel.
+        shift (iterable): Extension shift offsets.
+        index_dtype (torch.dtype, optional): dtype used when constructing index vectors.
+            Defaults to torch.float32.
     """
     if x.dim() != 2:
         raise ValueError("symext expects a 2D tensor")
@@ -109,17 +125,18 @@ def symext(x, h, shift):
     pad_bottom = q + s2
 
     device = x.device
+    index_dtype = torch.float32 if index_dtype is None else index_dtype
 
-    center_cols = torch.arange(n, device=device, dtype=torch.long)
-    left_idx = _reflect_indices(n, pad_left, "left", device)
-    right_idx = _reflect_indices(n, pad_right, "right", device)
-    col_idx = torch.cat([left_idx, center_cols, right_idx], dim=0)
+    center_cols = torch.arange(n, device=device, dtype=index_dtype)
+    left_idx = _reflect_indices(n, pad_left, "left", device, dtype=index_dtype)
+    right_idx = _reflect_indices(n, pad_right, "right", device, dtype=index_dtype)
+    col_idx = torch.cat([left_idx, center_cols, right_idx], dim=0).to(torch.long)
     extended = x.index_select(1, col_idx)
 
-    center_rows = torch.arange(m, device=device, dtype=torch.long)
-    top_idx = _reflect_indices(m, pad_top, "left", device)
-    bottom_idx = _reflect_indices(m, pad_bottom, "right", device)
-    row_idx = torch.cat([top_idx, center_rows, bottom_idx], dim=0)
+    center_rows = torch.arange(m, device=device, dtype=index_dtype)
+    top_idx = _reflect_indices(m, pad_top, "left", device, dtype=index_dtype)
+    bottom_idx = _reflect_indices(m, pad_bottom, "right", device, dtype=index_dtype)
+    row_idx = torch.cat([top_idx, center_rows, bottom_idx], dim=0).to(torch.long)
     extended = extended.index_select(0, row_idx)
 
     return extended[: m + p - 1, : n + q - 1]

@@ -32,6 +32,13 @@ def _ensure_filter_device_dtype(filter_tensor: torch.Tensor, reference: torch.Te
     return filter_tensor.to(device=reference.device, dtype=reference.dtype)
 
 
+def _resolve_matrix_dtype(matrix_dtype: Optional[torch.dtype]) -> torch.dtype:
+    """
+    Return a usable dtype for sampling matrices, defaulting to torch.float32.
+    """
+    return torch.float32 if matrix_dtype is None else matrix_dtype
+
+
 def _zconv2(x: torch.Tensor, h: torch.Tensor, mup: torch.Tensor) -> torch.Tensor:
     """
     2D convolution with upsampled filter using periodic boundary.
@@ -47,7 +54,14 @@ def _zconv2(x: torch.Tensor, h: torch.Tensor, mup: torch.Tensor) -> torch.Tensor
     return zconv2(x, h, mup)
 
 
-def _convolve_upsampled(x: torch.Tensor, f: torch.Tensor, mup: Union[int, float, torch.Tensor], is_rec: bool = False) -> torch.Tensor:
+def _convolve_upsampled(
+    x: torch.Tensor,
+    f: torch.Tensor,
+    mup: Union[int, float, torch.Tensor],
+    is_rec: bool = False,
+    *,
+    matrix_dtype: Optional[torch.dtype] = None,
+) -> torch.Tensor:
     """ 
     Helper for convolution with an upsampled filter, handling reconstruction.
     Uses zconv2-style periodic convolution when mup is a 2x2 matrix.
@@ -59,10 +73,14 @@ def _convolve_upsampled(x: torch.Tensor, f: torch.Tensor, mup: Union[int, float,
         return torch.zeros_like(x)
     
     # Convert mup to matrix form
+    resolved_dtype = _resolve_matrix_dtype(matrix_dtype)
+
     if isinstance(mup, (int, float)):
-        mup_mat = torch.tensor([[mup, 0], [0, mup]], dtype=torch.long, device=x.device)
+        mup_mat = torch.tensor([[mup, 0], [0, mup]], dtype=resolved_dtype, device=x.device)
     else:
-        mup_mat = mup.long().to(x.device)
+        if not isinstance(mup, torch.Tensor):
+            raise TypeError("mup must be a scalar or torch.Tensor")
+        mup_mat = mup.to(dtype=resolved_dtype, device=x.device)
     
     # For reconstruction, use time-reversed filter
     f_to_use = torch.rot90(f, 2) if is_rec else f
@@ -71,9 +89,24 @@ def _convolve_upsampled(x: torch.Tensor, f: torch.Tensor, mup: Union[int, float,
     return _zconv2(x, f_to_use, mup_mat)
 
 
-def nssfbdec(x, f1, f2, mup=None):
+def nssfbdec(
+    x,
+    f1,
+    f2,
+    mup=None,
+    *,
+    matrix_dtype: Optional[torch.dtype] = None,
+):
     """
     Two-channel nonsubsampled filter bank decomposition.
+
+    Args:
+        x (torch.Tensor): Input tensor.
+        f1 (torch.Tensor): First filter.
+        f2 (torch.Tensor): Second filter.
+        mup (Union[int, float, torch.Tensor], optional): Upsampling parameter.
+        matrix_dtype (torch.dtype, optional): dtype for constructing sampling matrices.
+            Defaults to torch.float32.
     """
     f1 = _ensure_filter_device_dtype(f1, x)
     f2 = _ensure_filter_device_dtype(f2, x)
@@ -82,14 +115,31 @@ def nssfbdec(x, f1, f2, mup=None):
         y1 = efilter2(x, f1)
         y2 = efilter2(x, f2)
     else:
-        y1 = _convolve_upsampled(x, f1, mup, is_rec=False)
-        y2 = _convolve_upsampled(x, f2, mup, is_rec=False)
+        y1 = _convolve_upsampled(x, f1, mup, is_rec=False, matrix_dtype=matrix_dtype)
+        y2 = _convolve_upsampled(x, f2, mup, is_rec=False, matrix_dtype=matrix_dtype)
     return y1, y2
 
 
-def nssfbrec(x1, x2, f1, f2, mup=None):
+def nssfbrec(
+    x1,
+    x2,
+    f1,
+    f2,
+    mup=None,
+    *,
+    matrix_dtype: Optional[torch.dtype] = None,
+):
     """
     Two-channel nonsubsampled filter bank reconstruction.
+
+    Args:
+        x1 (torch.Tensor): Lowpass inputs.
+        x2 (torch.Tensor): Highpass inputs.
+        f1 (torch.Tensor): Lowpass synthesis filter.
+        f2 (torch.Tensor): Highpass synthesis filter.
+        mup (Union[int, float, torch.Tensor], optional): Upsampling parameter.
+        matrix_dtype (torch.dtype, optional): dtype for constructing sampling matrices.
+            Defaults to torch.float32.
     """
     if x1.shape != x2.shape:
         raise ValueError("Input sizes for the two branches must be the same")
@@ -101,8 +151,8 @@ def nssfbrec(x1, x2, f1, f2, mup=None):
         y1 = efilter2(x1, f1)
         y2 = efilter2(x2, f2)
     else:
-        y1 = _convolve_upsampled(x1, f1, mup, is_rec=True)
-        y2 = _convolve_upsampled(x2, f2, mup, is_rec=True)
+        y1 = _convolve_upsampled(x1, f1, mup, is_rec=True, matrix_dtype=matrix_dtype)
+        y2 = _convolve_upsampled(x2, f2, mup, is_rec=True, matrix_dtype=matrix_dtype)
 
     return y1 + y2
 
@@ -123,7 +173,14 @@ def _atrousc(x: torch.Tensor, f: torch.Tensor, mup: torch.Tensor) -> torch.Tenso
     return atrousc(x, f, mup)
 
 
-def nsfbdec(x: torch.Tensor, h0: torch.Tensor, h1: torch.Tensor, lev: int) -> Tuple[torch.Tensor, torch.Tensor]:
+def nsfbdec(
+    x: torch.Tensor,
+    h0: torch.Tensor,
+    h1: torch.Tensor,
+    lev: int,
+    *,
+    matrix_dtype: Optional[torch.dtype] = None,
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Nonsubsampled filter bank decomposition at a given level.
     PyTorch translation of nsfbdec.m.
@@ -135,6 +192,8 @@ def nsfbdec(x: torch.Tensor, h0: torch.Tensor, h1: torch.Tensor, lev: int) -> Tu
         h0 (torch.Tensor): Lowpass à trous filter (obtained from atrousfilters).
         h1 (torch.Tensor): Highpass à trous filter (obtained from atrousfilters).
         lev (int): Decomposition level (0 for first level, >0 for subsequent levels).
+        matrix_dtype (torch.dtype, optional): dtype for constructing sampling matrices.
+            Defaults to torch.float32.
     
     Returns:
         tuple: (y0, y1) where:
@@ -148,6 +207,8 @@ def nsfbdec(x: torch.Tensor, h0: torch.Tensor, h1: torch.Tensor, lev: int) -> Tu
     h0 = _ensure_filter_device_dtype(h0, x)
     h1 = _ensure_filter_device_dtype(h1, x)
 
+    resolved_dtype = _resolve_matrix_dtype(matrix_dtype)
+
     if lev != 0:
         # For levels > 0, use upsampled filters
         shift = [-2**(lev-1), -2**(lev-1)]
@@ -155,7 +216,7 @@ def nsfbdec(x: torch.Tensor, h0: torch.Tensor, h1: torch.Tensor, lev: int) -> Tu
         L = 2**lev
         
         # Upsampling matrix for atrous convolution
-        mup = torch.tensor([[L, 0], [0, L]], dtype=torch.long, device=x.device)
+        mup = torch.tensor([[L, 0], [0, L]], dtype=resolved_dtype, device=x.device)
         
         # Upsample filters
         h0_up = upsample2df(h0, lev)
@@ -173,7 +234,7 @@ def nsfbdec(x: torch.Tensor, h0: torch.Tensor, h1: torch.Tensor, lev: int) -> Tu
         shift = [1, 1]
         
         # Upsampling matrix for regular convolution
-        mup = torch.tensor([[1, 0], [0, 1]], dtype=torch.long, device=x.device)
+        mup = torch.tensor([[1, 0], [0, 1]], dtype=resolved_dtype, device=x.device)
         
         # Symmetric extension
         x_ext_h0 = symext(x, h0, shift)
@@ -186,7 +247,15 @@ def nsfbdec(x: torch.Tensor, h0: torch.Tensor, h1: torch.Tensor, lev: int) -> Tu
     return y0, y1
 
 
-def nsfbrec(x0: torch.Tensor, x1: torch.Tensor, g0: torch.Tensor, g1: torch.Tensor, lev: int) -> torch.Tensor:
+def nsfbrec(
+    x0: torch.Tensor,
+    x1: torch.Tensor,
+    g0: torch.Tensor,
+    g1: torch.Tensor,
+    lev: int,
+    *,
+    matrix_dtype: Optional[torch.dtype] = None,
+) -> torch.Tensor:
     """
     Nonsubsampled filter bank reconstruction.
     PyTorch translation of nsfbrec.m.
@@ -197,6 +266,8 @@ def nsfbrec(x0: torch.Tensor, x1: torch.Tensor, g0: torch.Tensor, g1: torch.Tens
         g0 (torch.Tensor): Lowpass synthesis filter
         g1 (torch.Tensor): Highpass synthesis filter
         lev (int): Reconstruction level
+        matrix_dtype (torch.dtype, optional): dtype for constructing sampling matrices.
+            Defaults to torch.float32.
     
     Returns:
         torch.Tensor: Reconstructed image
@@ -207,6 +278,8 @@ def nsfbrec(x0: torch.Tensor, x1: torch.Tensor, g0: torch.Tensor, g1: torch.Tens
     g0 = _ensure_filter_device_dtype(g0, x0)
     g1 = _ensure_filter_device_dtype(g1, x0)
     
+    resolved_dtype = _resolve_matrix_dtype(matrix_dtype)
+
     if lev != 0:
         # For levels > 0, use upsampled filters
         shift = [-2**(lev-1), -2**(lev-1)]
@@ -214,7 +287,7 @@ def nsfbrec(x0: torch.Tensor, x1: torch.Tensor, g0: torch.Tensor, g1: torch.Tens
         L = 2**lev
         
         # Upsampling matrix for atrous convolution
-        mup = torch.tensor([[L, 0], [0, L]], dtype=torch.long, device=x0.device)
+        mup = torch.tensor([[L, 0], [0, L]], dtype=resolved_dtype, device=x0.device)
         
         # Upsample filters
         g0_up = upsample2df(g0, lev)
@@ -232,7 +305,7 @@ def nsfbrec(x0: torch.Tensor, x1: torch.Tensor, g0: torch.Tensor, g1: torch.Tens
         shift = [1, 1]
         
         # Upsampling matrix for regular convolution
-        mup = torch.tensor([[1, 0], [0, 1]], dtype=torch.long, device=x0.device)
+        mup = torch.tensor([[1, 0], [0, 1]], dtype=resolved_dtype, device=x0.device)
         
         # Symmetric extension
         x0_ext = symext(x0, g0, shift)
@@ -245,7 +318,13 @@ def nsfbrec(x0: torch.Tensor, x1: torch.Tensor, g0: torch.Tensor, g1: torch.Tens
     return y0 + y1
 
 
-def nsdfbdec(x: torch.Tensor, filters: dict, n: int) -> List[torch.Tensor]:
+def nsdfbdec(
+    x: torch.Tensor,
+    filters: dict,
+    n: int,
+    *,
+    matrix_dtype: Optional[torch.dtype] = None,
+) -> List[torch.Tensor]:
     """
     Nonsubsampled directional filter bank decomposition.
     PyTorch translation of nsdfbdec.m (following NumPy implementation).
@@ -254,6 +333,8 @@ def nsdfbdec(x: torch.Tensor, filters: dict, n: int) -> List[torch.Tensor]:
         x (torch.Tensor): Input image
         filters (dict): Dictionary containing filters k1, k2, f1, f2
         n (int): Number of decomposition levels (0 means no decomposition)
+        matrix_dtype (torch.dtype, optional): dtype for constructing sampling matrices.
+            Defaults to torch.float32.
     
     Returns:
         list: List of directional subbands (length 2^n)
@@ -295,7 +376,9 @@ def nsdfbdec(x: torch.Tensor, filters: dict, n: int) -> List[torch.Tensor]:
         return [y1, y2]
     
     # Quincunx sampling matrix
-    q1 = torch.tensor([[1, -1], [1, 1]], dtype=torch.long, device=x.device)
+    resolved_dtype = _resolve_matrix_dtype(matrix_dtype)
+
+    q1 = torch.tensor([[1, -1], [1, 1]], dtype=resolved_dtype, device=x.device)
     
     # Second-level decomposition
     # First level: no upsampling
@@ -303,8 +386,8 @@ def nsdfbdec(x: torch.Tensor, filters: dict, n: int) -> List[torch.Tensor]:
     
     # Second level: with quincunx upsampling
     y: List[torch.Tensor] = [torch.empty(0)] * 4
-    y[0], y[1] = nssfbdec(x1, k1, k2, q1)
-    y[2], y[3] = nssfbdec(x2, k1, k2, q1)
+    y[0], y[1] = nssfbdec(x1, k1, k2, q1, matrix_dtype=matrix_dtype)
+    y[2], y[3] = nssfbdec(x2, k1, k2, q1, matrix_dtype=matrix_dtype)
     
     if n == 2:
         return y
@@ -320,14 +403,20 @@ def nsdfbdec(x: torch.Tensor, filters: dict, n: int) -> List[torch.Tensor]:
             slk = 2 * ((k - 1) // 2) - 2 ** (l - 3) + 1
             
             # Compute the sampling matrix:
-            mkl_part1 = 2 * torch.tensor([[2 ** (l - 3), 0], [0, 1]], dtype=torch.long, device=x.device)
-            mkl_part2 = torch.tensor([[1, 0], [-slk, 1]], dtype=torch.long, device=x.device)
-            mkl = torch.mm(mkl_part1.float(), mkl_part2.float()).long()
+            mkl_part1 = 2 * torch.tensor([[2 ** (l - 3), 0], [0, 1]], dtype=resolved_dtype, device=x.device)
+            mkl_part2 = torch.tensor([[1, 0], [-slk, 1]], dtype=resolved_dtype, device=x.device)
+            mkl = torch.mm(mkl_part1, mkl_part2)
             
             i = (k - 1) % 2  # Index 0 or 1
             
             # Decompose by the two-channel filter bank
-            y[2 * k - 2], y[2 * k - 1] = nssfbdec(y_old[k - 1], f1[i], f2[i], mkl)
+            y[2 * k - 2], y[2 * k - 1] = nssfbdec(
+                y_old[k - 1],
+                f1[i],
+                f2[i],
+                mkl,
+                matrix_dtype=matrix_dtype,
+            )
         
         # The second half channels
         for k in range(2 ** (l - 2) + 1, 2 ** (l - 1) + 1):
@@ -335,19 +424,30 @@ def nsdfbdec(x: torch.Tensor, filters: dict, n: int) -> List[torch.Tensor]:
             slk = 2 * ((k - 2 ** (l - 2) - 1) // 2) - 2 ** (l - 3) + 1
             
             # Compute the sampling matrix:
-            mkl_part1 = 2 * torch.tensor([[1, 0], [0, 2 ** (l - 3)]], dtype=torch.long, device=x.device)
-            mkl_part2 = torch.tensor([[1, -slk], [0, 1]], dtype=torch.long, device=x.device)
-            mkl = torch.mm(mkl_part1.float(), mkl_part2.float()).long()
+            mkl_part1 = 2 * torch.tensor([[1, 0], [0, 2 ** (l - 3)]], dtype=resolved_dtype, device=x.device)
+            mkl_part2 = torch.tensor([[1, -slk], [0, 1]], dtype=resolved_dtype, device=x.device)
+            mkl = torch.mm(mkl_part1, mkl_part2)
             
             i = ((k - 1) % 2) + 2  # Index 2 or 3
             
             # Decompose by the two-channel filter bank
-            y[2 * k - 2], y[2 * k - 1] = nssfbdec(y_old[k - 1], f1[i], f2[i], mkl)
+            y[2 * k - 2], y[2 * k - 1] = nssfbdec(
+                y_old[k - 1],
+                f1[i],
+                f2[i],
+                mkl,
+                matrix_dtype=matrix_dtype,
+            )
     
     return y
 
 
-def nsdfbrec(y: List[torch.Tensor], filters: dict) -> torch.Tensor:
+def nsdfbrec(
+    y: List[torch.Tensor],
+    filters: dict,
+    *,
+    matrix_dtype: Optional[torch.dtype] = None,
+) -> torch.Tensor:
     """
     Nonsubsampled directional filter bank reconstruction.
     PyTorch translation of nsdfbrec.m (following NumPy implementation).
@@ -355,6 +455,8 @@ def nsdfbrec(y: List[torch.Tensor], filters: dict) -> torch.Tensor:
     Args:
         y (list): List of directional subbands (length 2^n)
         filters (dict): Dictionary containing filters k1, k2, f1, f2
+        matrix_dtype (torch.dtype, optional): dtype for constructing sampling matrices.
+            Defaults to torch.float32.
     
     Returns:
         torch.Tensor: Reconstructed image
@@ -412,7 +514,9 @@ def nsdfbrec(y: List[torch.Tensor], filters: dict) -> torch.Tensor:
     x = y.copy()
     
     # Quincunx sampling matrix
-    q1 = torch.tensor([[1, -1], [1, 1]], dtype=torch.long, device=y[0].device)
+    resolved_dtype = _resolve_matrix_dtype(matrix_dtype)
+
+    q1 = torch.tensor([[1, -1], [1, 1]], dtype=resolved_dtype, device=y[0].device)
     
     # Third and higher levels reconstructions (from highest to lowest)
     for l in range(n, 2, -1):
@@ -422,14 +526,21 @@ def nsdfbrec(y: List[torch.Tensor], filters: dict) -> torch.Tensor:
             slk = 2 * ((k - 1) // 2) - 2 ** (l - 3) + 1
             
             # Compute the sampling matrix:
-            mkl_part1 = 2 * torch.tensor([[2 ** (l - 3), 0], [0, 1]], dtype=torch.long, device=y[0].device)
-            mkl_part2 = torch.tensor([[1, 0], [-slk, 1]], dtype=torch.long, device=y[0].device)
-            mkl = torch.mm(mkl_part1.float(), mkl_part2.float()).long()
+            mkl_part1 = 2 * torch.tensor([[2 ** (l - 3), 0], [0, 1]], dtype=resolved_dtype, device=y[0].device)
+            mkl_part2 = torch.tensor([[1, 0], [-slk, 1]], dtype=resolved_dtype, device=y[0].device)
+            mkl = torch.mm(mkl_part1, mkl_part2)
             
             i = (k - 1) % 2  # Index 0 or 1
             
             # Reconstruct the two-channel filter bank
-            x[k - 1] = nssfbrec(x[2 * k - 2], x[2 * k - 1], f1[i], f2[i], mkl)
+            x[k - 1] = nssfbrec(
+                x[2 * k - 2],
+                x[2 * k - 1],
+                f1[i],
+                f2[i],
+                mkl,
+                matrix_dtype=matrix_dtype,
+            )
         
         # The second half channels
         for k in range(2 ** (l - 2) + 1, 2 ** (l - 1) + 1):
@@ -437,19 +548,26 @@ def nsdfbrec(y: List[torch.Tensor], filters: dict) -> torch.Tensor:
             slk = 2 * ((k - 2 ** (l - 2) - 1) // 2) - 2 ** (l - 3) + 1
             
             # Compute the sampling matrix:
-            mkl_part1 = 2 * torch.tensor([[1, 0], [0, 2 ** (l - 3)]], dtype=torch.long, device=y[0].device)
-            mkl_part2 = torch.tensor([[1, -slk], [0, 1]], dtype=torch.long, device=y[0].device)
-            mkl = torch.mm(mkl_part1.float(), mkl_part2.float()).long()
+            mkl_part1 = 2 * torch.tensor([[1, 0], [0, 2 ** (l - 3)]], dtype=resolved_dtype, device=y[0].device)
+            mkl_part2 = torch.tensor([[1, -slk], [0, 1]], dtype=resolved_dtype, device=y[0].device)
+            mkl = torch.mm(mkl_part1, mkl_part2)
             
             i = ((k - 1) % 2) + 2  # Index 2 or 3
             
             # Reconstruct the two-channel filter bank
-            x[k - 1] = nssfbrec(x[2 * k - 2], x[2 * k - 1], f1[i], f2[i], mkl)
+            x[k - 1] = nssfbrec(
+                x[2 * k - 2],
+                x[2 * k - 1],
+                f1[i],
+                f2[i],
+                mkl,
+                matrix_dtype=matrix_dtype,
+            )
     
     # Second-level reconstruction
     # Convolution with upsampled filters for the second level
-    x[0] = nssfbrec(x[0], x[1], k1, k2, q1)
-    x[1] = nssfbrec(x[2], x[3], k1, k2, q1)
+    x[0] = nssfbrec(x[0], x[1], k1, k2, q1, matrix_dtype=matrix_dtype)
+    x[1] = nssfbrec(x[2], x[3], k1, k2, q1, matrix_dtype=matrix_dtype)
     
     # First-level reconstruction
     # No upsampling for filters at the first level
