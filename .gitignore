@@ -1,5 +1,5 @@
 # Python
-__pycache__/
+*/__pycache__/
 *.pyc
 *.pyo
 *.pyd
@@ -31,3 +31,5 @@ WARP.md
 output/
 
 data/
+nsct_python/zconv2_cuda/zconv2_cuda.cpython-312-x86_64-linux-gnu.so
+nsct_python/atrousc_cuda/atrousc_cuda.cpython-312-x86_64-linux-gnu.so
