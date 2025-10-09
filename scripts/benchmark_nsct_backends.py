@@ -60,13 +60,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dtype",
         choices=("float32", "float64"),
-        default="float64",
+        default="float32",
         help="Floating point precision to use for both backends (default: %(default)s).",
     )
     parser.add_argument(
         "--device",
         type=str,
-        default="cpu",
+        default="cuda",
         choices=("cpu", "cuda"),
         help="Torch device to run on (default: %(default)s). Use 'cuda' for GPU benchmarking.",
     )
