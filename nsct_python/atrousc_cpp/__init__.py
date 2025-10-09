@@ -23,10 +23,17 @@ try:
     # Import the compiled C++ extension module
     # The module is in the same directory as this __init__.py
     import importlib.util
+    import platform
     module_name = 'atrousc_cpp'
     
-    # Find the .pyd or .so file
+    # Find the .pyd or .so file, prioritizing the correct platform
     pyd_files = [f for f in os.listdir(current_dir) if f.startswith('atrousc_cpp') and (f.endswith('.pyd') or f.endswith('.so'))]
+    
+    # Filter by platform
+    if platform.system() == 'Windows':
+        pyd_files = [f for f in pyd_files if f.endswith('.pyd')]
+    else:
+        pyd_files = [f for f in pyd_files if f.endswith('.so')]
     
     if pyd_files:
         spec = importlib.util.spec_from_file_location(module_name, os.path.join(current_dir, pyd_files[0]))
@@ -36,7 +43,7 @@ try:
             _atrousc_cpp = _cpp_module.atrousc
             CPP_AVAILABLE = True
     else:
-        _cpp_import_error = Exception("Compiled module file (.pyd or .so) not found")
+        _cpp_import_error = Exception("Compiled module file (.pyd or .so) not found for this platform")
         
 except Exception as e:
     _cpp_import_error = e
