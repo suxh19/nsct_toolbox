@@ -2,6 +2,32 @@
 NSCT Torch - PyTorch Implementation of Nonsubsampled Contourlet Transform
 
 This package provides PyTorch-based implementations with CUDA acceleration.
+
+Data Type Support:
+------------------
+All main functions support optional dtype parameter for computation precision:
+- None (default): Preserves input tensor dtype
+- torch.float32: 32-bit floating point, faster computation
+- torch.float64: 64-bit floating point, higher precision
+
+Functions supporting dtype parameter:
+- nsctdec, nsctrec: Main NSCT decomposition/reconstruction functions
+- atrousfilters, dfilters: Filter generation functions
+- efilter2, dmaxflat, ldfilter: Filter utility functions
+
+Example:
+    >>> import torch
+    >>> from nsct_torch import nsctdec, nsctrec
+    >>> 
+    >>> # Dtype automatically matches input (float32)
+    >>> img = torch.rand(256, 256)  
+    >>> coeffs = nsctdec(img, [2, 3, 4])  # Uses float32
+    >>> 
+    >>> # Explicitly use float32 for faster computation
+    >>> coeffs_32 = nsctdec(img, [2, 3, 4], dtype=torch.float32)
+    >>> 
+    >>> # Use float64 for higher precision
+    >>> coeffs_64 = nsctdec(img, [2, 3, 4], dtype=torch.float64)
 """
 
 import os

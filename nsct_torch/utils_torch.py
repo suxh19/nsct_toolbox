@@ -154,10 +154,11 @@ def modulate2(x, mode='b', center=None):
         center (list or tuple, optional): Modulation center offset. Defaults to None.
 
     Returns:
-        torch.Tensor: Modulated matrix.
+        torch.Tensor: Modulated matrix (preserves input dtype).
     """
     s = x.shape
     device = x.device
+    dtype = x.dtype
     if center is None:
         center = [0, 0]
 
@@ -168,7 +169,7 @@ def modulate2(x, mode='b', center=None):
     n1 = torch.arange(1, s[0] + 1, dtype=torch.float32, device=device) - o[0]
     n2 = torch.arange(1, s[1] + 1, dtype=torch.float32, device=device) - o[1]
 
-    y = x.to(torch.float64).clone()
+    y = x.clone()
     
     if mode in ['r', 'b']:
         m1 = (-1) ** n1

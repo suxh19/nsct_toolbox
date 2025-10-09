@@ -606,7 +606,7 @@ def nsdfbrec(y: List[torch.Tensor], filters: dict) -> torch.Tensor:
     return result
 
 
-def nsctdec(x: torch.Tensor, nlevs: List[int], dfilt: str = 'dmaxflat7', pfilt: str = 'maxflat') -> List[Any]:
+def nsctdec(x: torch.Tensor, nlevs: List[int], dfilt: str = 'dmaxflat7', pfilt: str = 'maxflat', dtype: Optional[torch.dtype] = None) -> List[Any]:
     """
     Nonsubsampled Contourlet Transform (NSCT) decomposition.
     PyTorch translation of nsctdec.m.
@@ -616,16 +616,25 @@ def nsctdec(x: torch.Tensor, nlevs: List[int], dfilt: str = 'dmaxflat7', pfilt: 
         nlevs (list): Number of directional decomposition levels at each pyramid level
         dfilt (str): Directional filter name (default: 'dmaxflat7')
         pfilt (str): Pyramid filter name (default: 'maxflat')
+        dtype (torch.dtype, optional): Data type for computation. If None, uses input dtype.
+                                      Default is None. Supports torch.float32 and torch.float64.
     
     Returns:
         list: NSCT coefficients [lowpass, band1, band2, ...]
     """
-    # Get directional filters
-    h1_dir, h2_dir = dfilters(dfilt, 'd')
+    # Use input dtype if not specified
+    if dtype is None:
+        dtype = x.dtype
     
-    # Move directional filters to the same device and dtype as input
-    h1_dir = h1_dir.to(device=x.device, dtype=x.dtype)
-    h2_dir = h2_dir.to(device=x.device, dtype=x.dtype)
+    # Convert input to specified dtype
+    x = x.to(dtype)
+    
+    # Get directional filters with specified dtype
+    h1_dir, h2_dir = dfilters(dfilt, 'd', dtype=dtype)
+    
+    # Move directional filters to the same device as input
+    h1_dir = h1_dir.to(device=x.device)
+    h2_dir = h2_dir.to(device=x.device)
     
     # Scale for nonsubsampled case
     scale = torch.tensor(2.0, dtype=x.dtype, device=x.device).sqrt()
@@ -644,14 +653,14 @@ def nsctdec(x: torch.Tensor, nlevs: List[int], dfilt: str = 'dmaxflat7', pfilt: 
         'f2': f2
     }
     
-    # Get pyramid filters
-    h1_pyr, h2_pyr, g1_pyr, g2_pyr = atrousfilters(pfilt)
+    # Get pyramid filters with specified dtype
+    h1_pyr, h2_pyr, g1_pyr, g2_pyr = atrousfilters(pfilt, dtype=dtype)
     
-    # Move filters to the same device and dtype as input
-    h1_pyr = h1_pyr.to(device=x.device, dtype=x.dtype)
-    h2_pyr = h2_pyr.to(device=x.device, dtype=x.dtype)
-    g1_pyr = g1_pyr.to(device=x.device, dtype=x.dtype)
-    g2_pyr = g2_pyr.to(device=x.device, dtype=x.dtype)
+    # Move filters to the same device as input
+    h1_pyr = h1_pyr.to(device=x.device)
+    h2_pyr = h2_pyr.to(device=x.device)
+    g1_pyr = g1_pyr.to(device=x.device)
+    g2_pyr = g2_pyr.to(device=x.device)
     
     # Number of pyramid levels
     n = len(nlevs)
@@ -675,7 +684,7 @@ def nsctdec(x: torch.Tensor, nlevs: List[int], dfilt: str = 'dmaxflat7', pfilt: 
     return coeffs
 
 
-def nsctrec(y: List[Any], dfilt: str = 'dmaxflat7', pfilt: str = 'maxflat') -> torch.Tensor:
+def nsctrec(y: List[Any], dfilt: str = 'dmaxflat7', pfilt: str = 'maxflat', dtype: Optional[torch.dtype] = None) -> torch.Tensor:
     """
     Nonsubsampled Contourlet Transform (NSCT) reconstruction.
     PyTorch translation of nsctrec.m.
@@ -684,19 +693,23 @@ def nsctrec(y: List[Any], dfilt: str = 'dmaxflat7', pfilt: str = 'maxflat') -> t
         y (list): NSCT coefficients [lowpass, band1, band2, ...]
         dfilt (str): Directional filter name (default: 'dmaxflat7')
         pfilt (str): Pyramid filter name (default: 'maxflat')
+        dtype (torch.dtype, optional): Data type for computation. If None, uses dtype from input coefficients.
+                                       Default is None. Supports torch.float32 and torch.float64.
     
     Returns:
         torch.Tensor: Reconstructed image
     """
-    # Get directional filters for reconstruction
-    h1_dir, h2_dir = dfilters(dfilt, 'r')
-    
-    # Move directional filters to the same device and dtype as input
-    # Use the lowpass coefficient to determine device/dtype
+    # Determine device and dtype from input if not specified
     device = y[0].device if len(y) > 0 and isinstance(y[0], torch.Tensor) else torch.device('cpu')
-    dtype = y[0].dtype if len(y) > 0 and isinstance(y[0], torch.Tensor) else torch.float64
-    h1_dir = h1_dir.to(device=device, dtype=dtype)
-    h2_dir = h2_dir.to(device=device, dtype=dtype)
+    if dtype is None:
+        dtype = y[0].dtype if len(y) > 0 and isinstance(y[0], torch.Tensor) else torch.float32
+    
+    # Get directional filters for reconstruction with specified dtype
+    h1_dir, h2_dir = dfilters(dfilt, 'r', dtype=dtype)
+    
+    # Move directional filters to the same device as input
+    h1_dir = h1_dir.to(device=device)
+    h2_dir = h2_dir.to(device=device)
     
     # Scale for nonsubsampled case
     scale = torch.tensor(2.0, dtype=dtype, device=device).sqrt()
@@ -715,17 +728,14 @@ def nsctrec(y: List[Any], dfilt: str = 'dmaxflat7', pfilt: str = 'maxflat') -> t
         'f2': f2
     }
     
-    # Get pyramid synthesis filters
-    h1_pyr, h2_pyr, g1_pyr, g2_pyr = atrousfilters(pfilt)
+    # Get pyramid synthesis filters with specified dtype
+    h1_pyr, h2_pyr, g1_pyr, g2_pyr = atrousfilters(pfilt, dtype=dtype)
     
-    # Move filters to the same device and dtype as input
-    # Use the lowpass coefficient to determine device/dtype
-    device = y[0].device if len(y) > 0 and isinstance(y[0], torch.Tensor) else torch.device('cpu')
-    dtype = y[0].dtype if len(y) > 0 and isinstance(y[0], torch.Tensor) else torch.float64
-    g1_pyr = g1_pyr.to(device=device, dtype=dtype)
-    g2_pyr = g2_pyr.to(device=device, dtype=dtype)
-    h1_pyr = h1_pyr.to(device=device, dtype=dtype)
-    h2_pyr = h2_pyr.to(device=device, dtype=dtype)
+    # Move filters to the same device as input
+    g1_pyr = g1_pyr.to(device=device)
+    g2_pyr = g2_pyr.to(device=device)
+    h1_pyr = h1_pyr.to(device=device)
+    h2_pyr = h2_pyr.to(device=device)
     
     # Number of pyramid levels
     n = len(y) - 1

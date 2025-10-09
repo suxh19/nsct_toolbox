@@ -64,7 +64,7 @@ def ld2quin(beta: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     return h0, h1
 
 
-def efilter2(x: torch.Tensor, f: torch.Tensor, extmod: str = 'per', shift: Optional[List[int]] = None) -> torch.Tensor:
+def efilter2(x: torch.Tensor, f: torch.Tensor, extmod: str = 'per', shift: Optional[List[int]] = None, dtype: torch.dtype = torch.float32) -> torch.Tensor:
     """
     2D Filtering with edge handling (via extension).
     PyTorch translation of efilter2.m.
@@ -75,6 +75,8 @@ def efilter2(x: torch.Tensor, f: torch.Tensor, extmod: str = 'per', shift: Optio
         extmod (str): Extension mode (default is 'per'). See extend2 for details.
         shift (list or tuple, optional): Specify the window over which the
                                          convolution occurs. Defaults to [0, 0].
+        dtype (torch.dtype): Data type for computation. Default is torch.float32.
+                            Supports torch.float32 and torch.float64.
 
     Returns:
         torch.Tensor: Filtered image of the same size as the input.
@@ -82,13 +84,13 @@ def efilter2(x: torch.Tensor, f: torch.Tensor, extmod: str = 'per', shift: Optio
     if shift is None:
         shift = [0, 0]
 
-    x_float = x.to(torch.float64)
+    x_float = x.to(dtype)
     if f.device != x_float.device or f.dtype != x_float.dtype:
         f = f.to(device=x_float.device, dtype=x_float.dtype)
 
     # The origin of filter f is assumed to be floor(size(f)/2) + 1.
     # Amount of shift should be no more than floor((size(f)-1)/2).
-    sf = (torch.tensor(f.shape, dtype=torch.float64) - 1) / 2
+    sf = (torch.tensor(f.shape, dtype=dtype) - 1) / 2
 
     # Extend the image
     xext = extend2(x_float,
@@ -109,7 +111,7 @@ def efilter2(x: torch.Tensor, f: torch.Tensor, extmod: str = 'per', shift: Optio
     return y
 
 
-def dmaxflat(N: int, d: float = 0.0) -> torch.Tensor:
+def dmaxflat(N: int, d: float = 0.0, dtype: torch.dtype = torch.float32) -> torch.Tensor:
     """
     Returns 2-D diamond maxflat filters of order 'N'.
     PyTorch translation of dmaxflat.m.
@@ -117,6 +119,8 @@ def dmaxflat(N: int, d: float = 0.0) -> torch.Tensor:
     Args:
         N (int): Order of the filter, must be in {1, 2, ..., 7}.
         d (float): The (0,0) coefficient, being 1 or 0 depending on use.
+        dtype (torch.dtype): Data type for the filter. Default is torch.float32.
+                            Supports torch.float32 and torch.float64.
 
     Returns:
         torch.Tensor: The 2D filter.
@@ -125,10 +129,10 @@ def dmaxflat(N: int, d: float = 0.0) -> torch.Tensor:
         raise ValueError('N must be in {1,2,3,4,5,6,7}')
 
     if N == 1:
-        h = torch.tensor([[0, 1, 0], [1, 0, 1], [0, 1, 0]], dtype=torch.float64) / 4.0
+        h = torch.tensor([[0, 1, 0], [1, 0, 1], [0, 1, 0]], dtype=dtype) / 4.0
         h[1, 1] = d
     elif N == 2:
-        h = torch.tensor([[0, -1, 0], [-1, 0, 10], [0, 10, 0]], dtype=torch.float64)
+        h = torch.tensor([[0, -1, 0], [-1, 0, 10], [0, 10, 0]], dtype=dtype)
         h = torch.cat([h, torch.fliplr(h[:, :-1])], dim=1)
         h = torch.cat([h, torch.flipud(h[:-1, :])], dim=0) / 32.0
         h[2, 2] = d
@@ -136,7 +140,7 @@ def dmaxflat(N: int, d: float = 0.0) -> torch.Tensor:
         h = torch.tensor([[0, 3, 0, 2],
                           [3, 0, -27, 0],
                           [0, -27, 0, 174],
-                          [2, 0, 174, 0]], dtype=torch.float64)
+                          [2, 0, 174, 0]], dtype=dtype)
         h = torch.cat([h, torch.fliplr(h[:, :-1])], dim=1)
         h = torch.cat([h, torch.flipud(h[:-1, :])], dim=0) / 512.0
         h[3, 3] = d
@@ -145,7 +149,7 @@ def dmaxflat(N: int, d: float = 0.0) -> torch.Tensor:
                           [-5, 0, 52, 0, 34],
                           [0, 52, 0, -276, 0],
                           [-3, 0, -276, 0, 1454],
-                          [0, 34, 0, 1454, 0]], dtype=torch.float64) / 2**12
+                          [0, 34, 0, 1454, 0]], dtype=dtype) / 2**12
         h = torch.cat([h, torch.fliplr(h[:, :-1])], dim=1)
         h = torch.cat([h, torch.flipud(h[:-1, :])], dim=0)
         h[4, 4] = d
@@ -155,7 +159,7 @@ def dmaxflat(N: int, d: float = 0.0) -> torch.Tensor:
                           [0, -425, 0, 2500, 0, 1610],
                           [20, 0, 2500, 0, -10200, 0],
                           [0, -250, 0, -10200, 0, 47780],
-                          [18, 0, 1610, 0, 47780, 0]], dtype=torch.float64) / 2**17
+                          [18, 0, 1610, 0, 47780, 0]], dtype=dtype) / 2**17
         h = torch.cat([h, torch.fliplr(h[:, :-1])], dim=1)
         h = torch.cat([h, torch.flipud(h[:-1, :])], dim=0)
         h[5, 5] = d
@@ -166,7 +170,7 @@ def dmaxflat(N: int, d: float = 0.0) -> torch.Tensor:
                           [-35, 0, -5910, 0, 25875, 0, 16460],
                           [0, 495, 0, 25875, 0, -89730, 0],
                           [-30, 0, -3420, 0, -89730, 0, 389112],
-                          [0, 444, 0, 16460, 0, 389112, 0]], dtype=torch.float64) / 2**20
+                          [0, 444, 0, 16460, 0, 389112, 0]], dtype=dtype) / 2**20
         h = torch.cat([h, torch.fliplr(h[:, :-1])], dim=1)
         h = torch.cat([h, torch.flipud(h[:-1, :])], dim=0)
         h[6, 6] = d
@@ -178,7 +182,7 @@ def dmaxflat(N: int, d: float = 0.0) -> torch.Tensor:
                           [0, -2009, 0, -136514, 0, 495145, 0, 311780],
                           [105, 0, 15435, 0, 495145, 0, -1535709, 0],
                           [0, -1715, 0, -77910, 0, -1535709, 0, 6305740],
-                          [100, 0, 13804, 0, 311780, 0, 6305740, 0]], dtype=torch.float64) / 2**24
+                          [100, 0, 13804, 0, 311780, 0, 6305740, 0]], dtype=dtype) / 2**24
         h = torch.cat([h, torch.fliplr(h[:, :-1])], dim=1)
         h = torch.cat([h, torch.flipud(h[:-1, :])], dim=0)
         h[7, 7] = d
@@ -186,13 +190,15 @@ def dmaxflat(N: int, d: float = 0.0) -> torch.Tensor:
     return h
 
 
-def atrousfilters(fname: str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+def atrousfilters(fname: str, dtype: torch.dtype = torch.float32) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Generate pyramid 2D filters for nonsubsampled filter banks.
     PyTorch translation of atrousfilters.m.
 
     Args:
         fname (str): Filter name. Supported: 'pyr', 'pyrexc', 'maxflat'.
+        dtype (torch.dtype): Data type for filters. Default is torch.float32.
+                            Supports torch.float32 and torch.float64.
 
     Returns:
         tuple: (h0, h1, g0, g1) pyramid filters.
@@ -202,27 +208,27 @@ def atrousfilters(fname: str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor,
             [-0.003236043456039806, -0.012944173824159223, -0.019416260736238835],
             [-0.012944173824159223, 0.0625, 0.15088834764831843],
             [-0.019416260736238835, 0.15088834764831843, 0.3406092167691145]
-        ], dtype=torch.float64)
+        ], dtype=dtype)
 
         g0 = torch.tensor([
             [-0.00016755163599004882, -0.001005309815940293, -0.002513274539850732, -0.003351032719800976],
             [-0.001005309815940293, -0.005246663087920392, -0.01193886400821893, -0.015395021472477663],
             [-0.002513274539850732, -0.01193886400821893, 0.06769410071569153, 0.15423938036811946],
             [-0.003351032719800976, -0.015395021472477663, 0.15423938036811946, 0.3325667382415921]
-        ], dtype=torch.float64)
+        ], dtype=dtype)
 
         h1_g1_common = torch.tensor([
             [-0.003236043456039806, -0.012944173824159223, -0.019416260736238835],
             [-0.012944173824159223, -0.0625, -0.09911165235168155],
             [-0.019416260736238835, -0.09911165235168155, 0.8406092167691145]
-        ], dtype=torch.float64)
+        ], dtype=dtype)
 
         g1_h1_common = torch.tensor([
             [0.00016755163599004882, 0.001005309815940293, 0.002513274539850732, 0.003351032719800976],
             [0.001005309815940293, -0.0012254238241592198, -0.013949483640099517, -0.023437500000000007],
             [0.002513274539850732, -0.013949483640099517, -0.06769410071569153, -0.10246268507148255],
             [0.003351032719800976, -0.023437500000000007, -0.10246268507148255, 0.8486516952966369]
-        ], dtype=torch.float64)
+        ], dtype=dtype)
 
         if fname == 'pyr':
             g1 = h1_g1_common
@@ -253,7 +259,7 @@ def atrousfilters(fname: str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor,
             [-0.000049773129328737247, 0., 0.0008959163279172705, 0.0015927401385195919, -0.0031357071477104465, -0.014334661246676327, -0.020904714318069645],
             [-0.00022753430550279883, 0., 0.004095617499050379, -0.0087890625, -0.014334661246676327, 0.0791015625, 0.16155815610625748],
             [-0.00033182086219158167, 0., 0.00597277551944847, -0.01795090623402861, -0.020904714318069645, 0.16155815610625748, 0.3177420190660832]
-        ], dtype=torch.float64)
+        ], dtype=dtype)
         
         g0 = torch.tensor([
             [-6.391587676622346e-010, 0., 1.7257286726880333e-08, 3.067962084778726e-08, -1.3805829381504267e-07, -5.522331752601707e-07, -3.3747582932565985e-07, 1.9328161134105974e-06, 5.6949046198705095e-06, 7.649452131381623e-06],
@@ -266,7 +272,7 @@ def atrousfilters(fname: str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor,
             [1.9328161134105974e-06, 0., -0.000052186035062086126, -0.0000806981871433068, 0.000417488280496689, 0.0014525673685795225, 0.0006340633462679356, -0.005083985790028328, -0.013743219515972684, -0.018059608999129246],
             [5.6949046198705095e-06, 0., -0.00015376242473650378, -0.00021814634152337594, 0.0012300993978920302, 0.0039266341474207675, -0.01181401175635013, -0.013743219515972684, 0.0826466923977296, 0.1638988884584603],
             [7.649452131381623e-06, 0., -0.00020653520754730382, -0.00028666046030363884, 0.0016522816603784306, 0.005159888285465499, -0.021745034491193898, -0.018059608999129246, 0.1638988884584603, 0.31358726209239235]
-        ], dtype=torch.float64)
+        ], dtype=dtype)
         
         g1 = torch.tensor([
             [-7.900496718847182e-07, 0., 0.000014220894093924927, 0.000025281589500310983, -0.000049773129328737247, -0.00022753430550279883, -0.00033182086219158167],
@@ -276,7 +282,7 @@ def atrousfilters(fname: str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor,
             [-0.000049773129328737247, 0., 0.0008959163279172705, 0.0015927401385195919, -0.0031357071477104465, -0.014334661246676327, -0.020904714318069645],
             [-0.00022753430550279883, 0., 0.004095617499050379, 0.0087890625, -0.014334661246676327, -0.0791015625, -0.1196918438937425],
             [-0.00033182086219158167, 0., 0.00597277551944847, 0.01329909376597139, -0.020904714318069645, -0.1196918438937425, 0.8177420190660831]
-        ], dtype=torch.float64)
+        ], dtype=dtype)
         
         h1 = torch.tensor([
             [6.391587676622346e-010, 0., -1.7257286726880333e-08, -3.067962084778726e-08, 1.3805829381504267e-07, 5.522331752601707e-07, 3.3747582932565985e-07, -1.9328161134105974e-06, -5.6949046198705095e-06, -7.649452131381623e-06],
@@ -289,7 +295,7 @@ def atrousfilters(fname: str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor,
             [-1.9328161134105974e-06, 0., 0.000052186035062086126, -0.00001884807151416769, -0.000417488280496689, 0.00033926528725501844, 0.002551416930771248, -0.0011874285053925643, -0.01492610297737997, -0.023749819637010044],
             [-5.6949046198705095e-06, 0., 0.00015376242473650378, -0.00023692226948222173, -0.0012300993978920302, 0.004264600850679991, 0.01181401175635013, -0.01492610297737997, -0.0826466923977296, -0.12203257624594532],
             [-7.649452131381623e-06, 0., 0.00020653520754730382, -0.0003769812640795245, -0.0016522816603784306, 0.006785662753431441, 0.017093222023136675, -0.023749819637010044, -0.12203257624594532, 0.821896776039774]
-        ], dtype=torch.float64)
+        ], dtype=dtype)
         
         # Symmetric extension for all filters
         g0 = torch.cat([g0, torch.fliplr(g0[:, :-1])], dim=1)
@@ -373,23 +379,25 @@ def mctrans(b: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
     return torch.rot90(h, 2)
 
 
-def ldfilter(fname: str) -> torch.Tensor:
+def ldfilter(fname: str, dtype: torch.dtype = torch.float32) -> torch.Tensor:
     """
     Generate filter for the ladder structure network.
     PyTorch translation of ldfilter.m.
 
     Args:
         fname (str): Filter name. 'pkva', 'pkva12', 'pkva8', 'pkva6'.
+        dtype (torch.dtype): Data type for filter. Default is torch.float32.
+                            Supports torch.float32 and torch.float64.
 
     Returns:
         torch.Tensor: The 1D filter.
     """
     if fname in ['pkva12', 'pkva']:
-        v = torch.tensor([0.6300, -0.1930, 0.0972, -0.0526, 0.0272, -0.0144], dtype=torch.float64)
+        v = torch.tensor([0.6300, -0.1930, 0.0972, -0.0526, 0.0272, -0.0144], dtype=dtype)
     elif fname == 'pkva8':
-        v = torch.tensor([0.6302, -0.1924, 0.0930, -0.0403], dtype=torch.float64)
+        v = torch.tensor([0.6302, -0.1924, 0.0930, -0.0403], dtype=dtype)
     elif fname == 'pkva6':
-        v = torch.tensor([0.6261, -0.1794, 0.0688], dtype=torch.float64)
+        v = torch.tensor([0.6261, -0.1794, 0.0688], dtype=dtype)
     else:
         raise ValueError(f"Unrecognized ladder structure filter name: {fname}")
 
@@ -397,7 +405,7 @@ def ldfilter(fname: str) -> torch.Tensor:
     return torch.cat([torch.flip(v, [0]), v])
 
 
-def dfilters(fname: str, type: str = 'd') -> Tuple[torch.Tensor, torch.Tensor]:
+def dfilters(fname: str, type: str = 'd', dtype: torch.dtype = torch.float32) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Generate directional 2D filters (diamond filter pair).
     PyTorch translation of dfilters.m.
@@ -405,12 +413,14 @@ def dfilters(fname: str, type: str = 'd') -> Tuple[torch.Tensor, torch.Tensor]:
     Args:
         fname (str): Filter name.
         type (str): 'd' for decomposition, 'r' for reconstruction.
+        dtype (torch.dtype): Data type for filters. Default is torch.float32.
+                            Supports torch.float32 and torch.float64.
 
     Returns:
         tuple: (h0, h1) diamond filter pair (lowpass and highpass).
     """
     if fname in ['pkva', 'ldtest']:
-        beta = ldfilter(fname)
+        beta = ldfilter(fname, dtype=dtype)
         h0, h1 = ld2quin(beta)
         h0 *= torch.sqrt(torch.tensor(2.0, dtype=h0.dtype))
         h1 *= torch.sqrt(torch.tensor(2.0, dtype=h1.dtype))
@@ -425,18 +435,18 @@ def dfilters(fname: str, type: str = 'd') -> Tuple[torch.Tensor, torch.Tensor]:
 
         N = int(fname.replace('dmaxflat', ''))
 
-        M1 = 1 / torch.sqrt(torch.tensor(2.0, dtype=torch.float64))
-        k1 = 1 - torch.sqrt(torch.tensor(2.0, dtype=torch.float64))
+        M1 = 1 / torch.sqrt(torch.tensor(2.0, dtype=dtype))
+        k1 = 1 - torch.sqrt(torch.tensor(2.0, dtype=dtype))
         k3 = k1
         k2 = M1
 
-        h = torch.tensor([0.25 * k2 * k3, 0.5 * k2, 1 + 0.5 * k2 * k3], dtype=torch.float64) * M1
+        h = torch.tensor([0.25 * k2 * k3, 0.5 * k2, 1 + 0.5 * k2 * k3], dtype=dtype) * M1
         h = torch.cat([h, torch.flip(h[:-1], [0])])
 
-        g = torch.tensor([-0.125*k1*k2*k3, 0.25*k1*k2, (-0.5*k1-0.5*k3-0.375*k1*k2*k3), 1 + 0.5*k1*k2], dtype=torch.float64) * M1
+        g = torch.tensor([-0.125*k1*k2*k3, 0.25*k1*k2, (-0.5*k1-0.5*k3-0.375*k1*k2*k3), 1 + 0.5*k1*k2], dtype=dtype) * M1
         g = torch.cat([g, torch.flip(g[:-1], [0])])
 
-        B = dmaxflat(N, 0)
+        B = dmaxflat(N, 0, dtype=dtype)
         h0 = mctrans(h, B)
         g0 = mctrans(g, B)
 
@@ -460,11 +470,11 @@ def dfilters(fname: str, type: str = 'd') -> Tuple[torch.Tensor, torch.Tensor]:
         try:
             wavelet = pywt.Wavelet(fname)  # type: ignore
             if type == 'd':
-                h0 = torch.from_numpy(np.array(wavelet.dec_lo)).to(torch.float64)
-                h1 = torch.from_numpy(np.array(wavelet.dec_hi)).to(torch.float64)
+                h0 = torch.from_numpy(np.array(wavelet.dec_lo)).to(dtype)
+                h1 = torch.from_numpy(np.array(wavelet.dec_hi)).to(dtype)
             else:  # 'r'
-                h0 = torch.from_numpy(np.array(wavelet.rec_lo)).to(torch.float64)
-                h1 = torch.from_numpy(np.array(wavelet.rec_hi)).to(torch.float64)
+                h0 = torch.from_numpy(np.array(wavelet.rec_lo)).to(dtype)
+                h1 = torch.from_numpy(np.array(wavelet.rec_hi)).to(dtype)
         except ValueError:
             raise ValueError(f"Unrecognized filter name: {fname}")
 
