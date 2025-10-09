@@ -13,9 +13,9 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from nsct_python import core
-from nsct_python import core_torch
+from nsct_torch import core_torch
 from nsct_python.filters import dfilters as dfilters_np, atrousfilters as atrousfilters_np
-from nsct_python.filters_torch import dfilters as dfilters_torch, atrousfilters as atrousfilters_torch
+from nsct_torch.filters_torch import dfilters as dfilters_torch, atrousfilters as atrousfilters_torch
 
 
 def numpy_to_torch(arr):
@@ -298,7 +298,7 @@ class TestNsdfbdecConsistency:
         
         # Create filter dictionaries
         from nsct_python.filters import modulate2 as modulate2_np, parafilters as parafilters_np
-        from nsct_python.filters_torch import modulate2 as modulate2_torch, parafilters as parafilters_torch
+        from nsct_torch.filters_torch import modulate2 as modulate2_torch, parafilters as parafilters_torch
         
         k1_np = modulate2_np(h1_np, 'c')
         k2_np = modulate2_np(h2_np, 'c')
@@ -345,7 +345,7 @@ class TestNsdfbrecConsistency:
         h2_torch = h2_torch / torch.sqrt(torch.tensor(2.0))
         
         from nsct_python.filters import modulate2 as modulate2_np, parafilters as parafilters_np
-        from nsct_python.filters_torch import modulate2 as modulate2_torch, parafilters as parafilters_torch
+        from nsct_torch.filters_torch import modulate2 as modulate2_torch, parafilters as parafilters_torch
         
         k1_np = modulate2_np(h1_np, 'c')
         k2_np = modulate2_np(h2_np, 'c')
@@ -538,7 +538,7 @@ class TestEdgeCases:
         h1 = h1 / torch.sqrt(torch.tensor(2.0))
         h2 = h2 / torch.sqrt(torch.tensor(2.0))
         
-        from nsct_python.filters_torch import modulate2, parafilters
+        from nsct_torch.filters_torch import modulate2, parafilters
         k1 = modulate2(h1, 'c')
         k2 = modulate2(h2, 'c')
         f1, f2 = parafilters(h1, h2)

@@ -32,7 +32,7 @@ except ImportError as e:
 
 try:
     import torch
-    import nsct_python.zconv2_cuda as zconv2_cuda_module
+    import nsct_torch.zconv2_cuda as zconv2_cuda_module
     CUDA_AVAILABLE = torch.cuda.is_available() and zconv2_cuda_module.CUDA_AVAILABLE
     if CUDA_AVAILABLE:
         zconv2_cuda = zconv2_cuda_module.zconv2_cuda

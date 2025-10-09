@@ -23,7 +23,7 @@ from nsct_python.utils import (
     qupz as qupz_np
 )
 
-from nsct_python.utils_torch import (
+from nsct_torch.utils_torch import (
     extend2 as extend2_torch,
     symext as symext_torch,
     upsample2df as upsample2df_torch,

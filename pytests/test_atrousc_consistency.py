@@ -31,7 +31,7 @@ except ImportError as e:
 
 try:
     import torch
-    from nsct_python.atrousc_cuda import atrousc_cuda, is_available
+    from nsct_torch.atrousc_cuda import atrousc_cuda, is_available
     CUDA_AVAILABLE = torch.cuda.is_available() and is_available()
     if not CUDA_AVAILABLE:
         print("CUDA not available: torch.cuda.is_available() =", torch.cuda.is_available())

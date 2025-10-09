@@ -16,7 +16,7 @@ from nsct_python.filters import (
     dfilters as dfilters_np,
     parafilters as parafilters_np
 )
-from nsct_python.filters_torch import (
+from nsct_torch.filters_torch import (
     ld2quin as ld2quin_torch,
     efilter2 as efilter2_torch,
     dmaxflat as dmaxflat_torch,
