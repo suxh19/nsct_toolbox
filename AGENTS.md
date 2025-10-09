@@ -1,9 +1,10 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `nsct_python/` hosts the Python API for nonsubsampled contourlet transforms. Core numerical routines live in `core.py`, `filters.py`, and `utils.py`; PyTorch equivalents sit in the `*_torch.py` modules. C++/CUDA bindings remain inside `atrousc_cpp/`, `atrousc_cuda/`, `zconv2_cpp/`, and `zconv2_cuda/`—keep their Python interfaces aligned.
+- `nsct_python/` hosts the Python/NumPy API for nonsubsampled contourlet transforms (CPU-based). Core numerical routines live in `core.py`, `filters.py`, and `utils.py`.
+- `nsct_torch/` provides **CUDA-only** PyTorch implementations. The core functions (`zconv2_cuda`, `atrousc_cuda`) require GPU tensors and will fail on CPU. C++/CUDA bindings remain inside `atrousc_cuda/` and `zconv2_cuda/`.
 - Reusable fixtures and reference data belong in `data/` and `mat_tests/`; MATLAB sources stay in `nsct_matlab/` for parity checks. Public documentation lives under `docs/`.
-- Tests belong in `pytests/`, mirroring module names. Integration and comparison helpers reside in `scripts/`, e.g. `run_python_nsct.py`. Avoid modifying `test_image.jpg` unless you regenerate goldens.
+- Tests belong in `pytests/`, mirroring module names. `test_core_torch.py` requires CUDA and will skip all tests if GPU is unavailable. Integration and comparison helpers reside in `scripts/`, e.g. `run_python_nsct.py`. Avoid modifying `test_image.jpg` unless you regenerate goldens.
 
 ## Build, Test, and Development Commands
 - `python -m pip install -r requirements.txt` — lightweight development install; extend this file when new Python deps land.

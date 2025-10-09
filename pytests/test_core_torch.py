@@ -3,6 +3,8 @@ Comprehensive pytest tests for core_torch.py
 
 Tests numerical accuracy, precision, shape consistency, and one-to-one consistency
 between NumPy (core.py) and PyTorch (core_torch.py) implementations.
+
+NOTE: This test suite requires CUDA. All tests will be skipped if CUDA is not available.
 """
 
 import pytest
@@ -18,11 +20,16 @@ from nsct_python.filters import dfilters as dfilters_np, atrousfilters as atrous
 from nsct_torch.filters_torch import dfilters as dfilters_torch, atrousfilters as atrousfilters_torch
 
 
+# Check if CUDA is available
+CUDA_AVAILABLE = torch.cuda.is_available()
+pytestmark = pytest.mark.skipif(not CUDA_AVAILABLE, reason="CUDA not available")
+
+
 def numpy_to_torch(arr):
-    """Convert numpy array to torch tensor."""
+    """Convert numpy array to torch CUDA tensor."""
     if isinstance(arr, np.ndarray):
-        return torch.from_numpy(arr.copy())
-    return arr
+        return torch.from_numpy(arr.copy()).cuda()
+    return arr.cuda() if isinstance(arr, torch.Tensor) else arr
 
 
 def torch_to_numpy(tensor):

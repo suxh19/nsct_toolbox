@@ -80,20 +80,28 @@ __global__ void zconv2_kernel(
             index_x -= M2;
             if (index_x < 0) 
                 index_x += s_row_len;
+            if (index_x >= s_row_len)
+                index_x -= s_row_len;
 
             index_y -= M3;
             if (index_y < 0) 
                 index_y += s_col_len;
+            if (index_y >= s_col_len)
+                index_y -= s_col_len;
         }
 
         // Step for outer filter loop with M0, M1 (periodic boundary)
         out_index_x -= M0;
         if (out_index_x < 0) 
             out_index_x += s_row_len;
+        if (out_index_x >= s_row_len)
+            out_index_x -= s_row_len;
 
         out_index_y -= M1;
         if (out_index_y < 0) 
             out_index_y += s_col_len;
+        if (out_index_y >= s_col_len)
+            out_index_y -= s_col_len;
     }
 
     // Write result to output

@@ -1,99 +1,25 @@
+"""
+PyTorch implementation of NSCT (Nonsubsampled Contourlet Transform).
+
+CUDA-ONLY IMPLEMENTATION
+------------------------
+This module requires CUDA and will only work with GPU tensors.
+All input tensors must be on CUDA devices.
+For CPU support, use nsct_python.core module instead.
+
+Key functions directly use CUDA kernels:
+- zconv2_cuda: 2D convolution with upsampled filter (periodic boundary)
+- atrousc_cuda: Atrous convolution with symmetric extension
+
+"""
 import torch
 import torch.nn.functional as F
 from typing import Union, Tuple, Optional, List, Any
 
 from nsct_torch.filters_torch import efilter2, dfilters, modulate2, parafilters, atrousfilters
 from nsct_torch.utils_torch import extend2, symext, upsample2df
-
-# Import CUDA implementation of zconv2 if available
-try:
-    from nsct_torch.zconv2_cuda import zconv2_cuda as _zconv2_cuda
-    ZCONV2_CUDA_AVAILABLE = True
-except ImportError:
-    ZCONV2_CUDA_AVAILABLE = False
-    _zconv2_cuda = None
-
-# Import CUDA implementation of atrousc if available
-try:
-    from nsct_torch.atrousc_cuda import atrousc_cuda as _atrousc_cuda
-    ATROUSC_CUDA_AVAILABLE = True
-except ImportError:
-    ATROUSC_CUDA_AVAILABLE = False
-    _atrousc_cuda = None
-
-
-def _zconv2_torch(x: torch.Tensor, h: torch.Tensor, mup: torch.Tensor) -> torch.Tensor:
-    """
-    2D convolution with upsampled filter using periodic boundary (PyTorch implementation).
-    
-    Vectorized implementation for better performance.
-    
-    Args:
-        x: Input signal (2D tensor)
-        h: Filter (2D tensor)
-        mup: Upsampling matrix (2x2 tensor) [[M0, M1], [M2, M3]]
-    
-    Returns:
-        y: Convolution output (same size as x)
-    """
-    s_row_len, s_col_len = x.shape
-    f_row_len, f_col_len = h.shape
-    
-    # Upsampling factors from the matrix
-    # mup = [[M0, M1], [M2, M3]]
-    mup_int = mup.long()
-    M0 = mup_int[0, 0].item()
-    M1 = mup_int[0, 1].item()
-    M2 = mup_int[1, 0].item()
-    M3 = mup_int[1, 1].item()
-    
-    # Calculate upsampled filter dimensions
-    new_f_row_len = (M0 - 1) * (f_row_len - 1) + M2 * (f_col_len - 1) + f_row_len - 1
-    new_f_col_len = (M3 - 1) * (f_col_len - 1) + M1 * (f_row_len - 1) + f_col_len - 1
-    
-    # Starting positions
-    start1 = new_f_row_len // 2
-    start2 = new_f_col_len // 2
-    mn1_init = start1 % s_row_len
-    mn2_save = start2 % s_col_len
-    
-    # Initialize output
-    y = torch.zeros_like(x)
-    
-    # Vectorized approach: compute all indices for each filter tap
-    # For each filter element (l1, l2), compute the indices it affects
-    for l1 in range(f_row_len):
-        for l2 in range(f_col_len):
-            if h[l1, l2] == 0:
-                continue  # Skip zero filter coefficients
-            
-            # Precompute index offsets for this filter tap
-            # For output position (n1, n2), we need input at specific shifted location
-            # Based on C++ logic: start from mn1_init + n1, mn2_save + n2
-            # Then apply filter-specific shifts
-            
-            # Create row indices for all output positions
-            n1_range = torch.arange(s_row_len, dtype=torch.long, device=x.device)
-            n2_range = torch.arange(s_col_len, dtype=torch.long, device=x.device)
-            
-            # Compute starting position for each output position
-            mn1_arr = (mn1_init + n1_range) % s_row_len
-            mn2_arr = (mn2_save + n2_range) % s_col_len
-            
-            # Apply filter-specific offset
-            # offset_x = -M0 * l1
-            # offset_y = -M1 * l1 - M3 * l2
-            offset_x = (-M0 * l1 - M2 * l2)
-            offset_y = (-M1 * l1 - M3 * l2)
-            
-            # Compute indices for this filter tap
-            idx_x = (mn1_arr.unsqueeze(1) + offset_x) % s_row_len
-            idx_y = (mn2_arr.unsqueeze(0) + offset_y) % s_col_len
-            
-            # Accumulate: y += h[l1, l2] * x[idx_x, idx_y]
-            y += h[l1, l2] * x[idx_x, idx_y]
-    
-    return y
+from nsct_torch.zconv2_cuda import zconv2_cuda
+from nsct_torch.atrousc_cuda import atrousc_cuda
 
 
 def _ensure_filter_device_dtype(filter_tensor: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
@@ -109,8 +35,6 @@ def _zconv2(x: torch.Tensor, h: torch.Tensor, mup: torch.Tensor) -> torch.Tensor
     """
     2D convolution with upsampled filter using periodic boundary.
     
-    Uses CUDA implementation if available, otherwise falls back to pure PyTorch.
-    
     Args:
         x: Input signal (2D tensor)
         h: Filter (2D tensor)
@@ -119,13 +43,7 @@ def _zconv2(x: torch.Tensor, h: torch.Tensor, mup: torch.Tensor) -> torch.Tensor
     Returns:
         y: Convolution output (same size as x)
     """
-    if ZCONV2_CUDA_AVAILABLE and x.is_cuda:
-        if _zconv2_cuda is not None:
-            return _zconv2_cuda(x, h, mup)
-        # Fallback in case the check somehow fails but function is None
-        return _zconv2_torch(x, h, mup)
-    else:
-        return _zconv2_torch(x, h, mup)
+    return zconv2_cuda(x, h, mup)
 
 
 def _convolve_upsampled(x: torch.Tensor, f: torch.Tensor, mup: Union[int, float, torch.Tensor], is_rec: bool = False) -> torch.Tensor:
@@ -188,69 +106,9 @@ def nssfbrec(x1, x2, f1, f2, mup=None):
     return y1 + y2
 
 
-def _atrousc_torch(x: torch.Tensor, f: torch.Tensor, mup: torch.Tensor) -> torch.Tensor:
-    """
-    Atrous convolution with symmetric extension (PyTorch implementation).
-    
-    Matches the CUDA kernel implementation logic.
-    
-    Args:
-        x: Input extended signal (2D tensor)
-        f: Filter (not upsampled, 2D tensor)
-        mup: Upsampling matrix (2x2 tensor or scalar)
-    
-    Returns:
-        y: Convolution output
-    """
-    # Extract upsampling factors
-    if mup.numel() == 1:
-        M0 = M3 = mup.item()
-    else:
-        M0 = mup[1, 1].item()  # Column upsampling factor
-        M3 = mup[0, 0].item()  # Row upsampling factor
-    
-    fm, fn = f.shape
-    xm, xn = x.shape
-    
-    # Calculate output size based on upsampling factors
-    m = xm - M3 * fm + 1
-    n = xn - M0 * fn + 1
-    
-    if m <= 0 or n <= 0:
-        return torch.zeros(max(0, int(m)), max(0, int(n)), dtype=x.dtype, device=x.device)
-    
-    # Initialize output
-    y = torch.zeros(int(m), int(n), dtype=x.dtype, device=x.device)
-
-    # Rotate filter 180 degrees to match convolution behaviour
-    f_rot = torch.rot90(f, 2)
-    
-    # Perform atrous convolution
-    # Following CUDA kernel logic: kk = n + M - 1, then kk += M for each filter element
-    # This means for output position (n2, n1), we sample input at:
-    # (n2 + M3 - 1 + k2 * M3, n1 + M0 - 1 + k1 * M0) for filter position (k2, k1)
-    # Which simplifies to: (n2 + (k2 + 1) * M3 - 1, n1 + (k1 + 1) * M0 - 1)
-    # Or: (n2 + k2 * M3 + M3 - 1, n1 + k1 * M0 + M0 - 1)
-    
-    for k2 in range(fm):  # Filter rows
-        for k1 in range(fn):  # Filter columns
-            # Calculate starting positions for this filter element
-            # kk2 = n2 + M3 - 1 + k2 * M3  (for all n2 from 0 to m-1)
-            # kk1 = n1 + M0 - 1 + k1 * M0  (for all n1 from 0 to n-1)
-            row_start = M3 - 1 + k2 * M3
-            col_start = M0 - 1 + k1 * M0
-            
-            # Extract the portion and accumulate
-            y = y + f_rot[k2, k1] * x[row_start:row_start + m, col_start:col_start + n]
-    
-    return y
-
-
 def _atrousc(x: torch.Tensor, f: torch.Tensor, mup: torch.Tensor) -> torch.Tensor:
     """
     Atrous convolution with symmetric extension.
-    
-    Uses CUDA implementation if available, otherwise falls back to pure PyTorch.
     
     Args:
         x: Input extended signal (2D tensor)
@@ -261,14 +119,7 @@ def _atrousc(x: torch.Tensor, f: torch.Tensor, mup: torch.Tensor) -> torch.Tenso
         y: Convolution output
     """
     f = _ensure_filter_device_dtype(f, x)
-
-    if ATROUSC_CUDA_AVAILABLE and x.is_cuda:
-        if _atrousc_cuda is not None:
-            return _atrousc_cuda(x, f, mup)
-        # Fallback in case the check somehow fails but function is None
-        return _atrousc_torch(x, f, mup)
-    else:
-        return _atrousc_torch(x, f, mup)
+    return atrousc_cuda(x, f, mup)
 
 
 def nsfbdec(x: torch.Tensor, h0: torch.Tensor, h1: torch.Tensor, lev: int) -> Tuple[torch.Tensor, torch.Tensor]:

@@ -35,8 +35,8 @@ def load_test_image(image_path: Path) -> np.ndarray:
 
 
 def numpy_to_torch(arr: np.ndarray) -> torch.Tensor:
-    """将 NumPy 数组转换为 PyTorch 张量（使用 float64 精度）。"""
-    return torch.from_numpy(arr.copy()).double()
+    """将 NumPy 数组转换为 PyTorch 张量（使用 float64 精度），并移至 CUDA 设备。"""
+    return torch.from_numpy(arr.copy()).double().cuda()
 
 
 def torch_to_numpy(tensor: torch.Tensor) -> np.ndarray:
