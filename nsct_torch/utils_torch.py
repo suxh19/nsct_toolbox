@@ -216,7 +216,7 @@ def resampz(x, type, shift=1):
         non_zero_rows = torch.where(row_norms > 0)[0]
         if len(non_zero_rows) == 0:
             return torch.zeros((0, sx[1]), dtype=x.dtype, device=x.device)
-        return y[non_zero_rows.min():non_zero_rows.max() + 1, :]
+        return y[non_zero_rows.min().item():non_zero_rows.max().item() + 1, :]
 
     elif type in [3, 4]:  # Horizontal shearing
         y = torch.zeros((sx[0], sx[1] + abs(shift * (sx[0] - 1))), 
@@ -238,7 +238,7 @@ def resampz(x, type, shift=1):
         non_zero_cols = torch.where(col_norms > 0)[0]
         if len(non_zero_cols) == 0:
             return torch.zeros((sx[0], 0), dtype=x.dtype, device=x.device)
-        return y[:, non_zero_cols.min():non_zero_cols.max() + 1]
+        return y[:, non_zero_cols.min().item():non_zero_cols.max().item() + 1]
 
     else:
         raise ValueError("Type must be one of {1, 2, 3, 4}")
@@ -295,8 +295,8 @@ def qupz(x, type=1):
         return torch.zeros((0, 0), dtype=x.dtype, device=x.device)
     
     # Trim to bounding box of non-zero elements
-    y = y[non_zero_rows.min():non_zero_rows.max() + 1, 
-          non_zero_cols.min():non_zero_cols.max() + 1]
+    y = y[non_zero_rows.min().item():non_zero_rows.max().item() + 1, 
+          non_zero_cols.min().item():non_zero_cols.max().item() + 1]
     
     return y
 

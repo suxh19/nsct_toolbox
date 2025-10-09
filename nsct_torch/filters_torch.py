@@ -64,7 +64,13 @@ def ld2quin(beta: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     return h0, h1
 
 
-def efilter2(x: torch.Tensor, f: torch.Tensor, extmod: str = 'per', shift: Optional[List[int]] = None, dtype: torch.dtype = torch.float32) -> torch.Tensor:
+def efilter2(
+    x: torch.Tensor,
+    f: torch.Tensor,
+    extmod: str = "per",
+    shift: Optional[List[int]] = None,
+    dtype: Optional[torch.dtype] = None,
+) -> torch.Tensor:
     """
     2D Filtering with edge handling (via extension).
     PyTorch translation of efilter2.m.
@@ -75,38 +81,40 @@ def efilter2(x: torch.Tensor, f: torch.Tensor, extmod: str = 'per', shift: Optio
         extmod (str): Extension mode (default is 'per'). See extend2 for details.
         shift (list or tuple, optional): Specify the window over which the
                                          convolution occurs. Defaults to [0, 0].
-        dtype (torch.dtype): Data type for computation. Default is torch.float32.
-                            Supports torch.float32 and torch.float64.
+        dtype (torch.dtype, optional): Data type for computation. Defaults to
+                                       the input dtype when not provided.
 
     Returns:
         torch.Tensor: Filtered image of the same size as the input.
     """
     if shift is None:
         shift = [0, 0]
+    if dtype is None:
+        dtype = x.dtype
 
-    x_float = x.to(dtype)
+    x_float = x.to(dtype=dtype)
     if f.device != x_float.device or f.dtype != x_float.dtype:
         f = f.to(device=x_float.device, dtype=x_float.dtype)
 
     # The origin of filter f is assumed to be floor(size(f)/2) + 1.
     # Amount of shift should be no more than floor((size(f)-1)/2).
-    sf = (torch.tensor(f.shape, dtype=dtype) - 1) / 2
+    sf = (torch.tensor(f.shape, dtype=torch.float64, device=x_float.device) - 1) / 2
 
     # Extend the image
-    xext = extend2(x_float,
-                   int(torch.floor(sf[0]).item()) + shift[0],
-                   int(torch.ceil(sf[0]).item()) - shift[0],
-                   int(torch.floor(sf[1]).item()) + shift[1],
-                   int(torch.ceil(sf[1]).item()) - shift[1],
-                   extmod)
+    xext = extend2(
+        x_float,
+        int(torch.floor(sf[0]).item()) + shift[0],
+        int(torch.ceil(sf[0]).item()) - shift[0],
+        int(torch.floor(sf[1]).item()) + shift[1],
+        int(torch.ceil(sf[1]).item()) - shift[1],
+        extmod,
+    )
 
-    # Use F.conv2d for correlation (need to flip filter for convolution)
-    # Add batch and channel dimensions
+    # Use F.conv2d for convolution (flip filters because conv2d computes correlation)
     xext_4d = xext.unsqueeze(0).unsqueeze(0)
-    f_4d = f.unsqueeze(0).unsqueeze(0)
-    
-    # conv2d performs correlation when we don't flip the kernel
-    y = F.conv2d(xext_4d, f_4d).squeeze(0).squeeze(0)
+    f_rot = torch.flip(f, dims=[0, 1]).unsqueeze(0).unsqueeze(0)
+
+    y = F.conv2d(xext_4d, f_rot).squeeze(0).squeeze(0)
 
     return y
 
