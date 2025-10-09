@@ -189,8 +189,9 @@ def benchmark_backends(
     pfilt: str,
     repeats: int,
 ) -> dict[str, Any]:
-    coeffs_numpy = nsctdec_numpy(image_np, levels, dfilt=dfilt, pfilt=pfilt)
-    coeffs_torch = nsctdec_torch(image_torch, levels, dfilt=dfilt, pfilt=pfilt)
+    levels_list = list(levels)
+    coeffs_numpy = nsctdec_numpy(image_np, levels_list, dfilt=dfilt, pfilt=pfilt)
+    coeffs_torch = nsctdec_torch(image_torch, levels_list, dfilt=dfilt, pfilt=pfilt)
     if image_torch.device.type == "cuda":
         torch.cuda.synchronize()
 
