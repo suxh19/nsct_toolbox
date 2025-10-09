@@ -31,14 +31,15 @@ except ImportError as e:
 
 try:
     import torch
-    from nsct_torch.atrousc_cuda import atrousc_cuda, is_available
+    from nsct_torch.atrousc import atrousc, is_available
     CUDA_AVAILABLE = torch.cuda.is_available() and is_available()
+    atrousc_fn = atrousc if CUDA_AVAILABLE else None
     if not CUDA_AVAILABLE:
         print("CUDA not available: torch.cuda.is_available() =", torch.cuda.is_available())
 except ImportError as e:
     CUDA_AVAILABLE = False
     torch = None
-    atrousc_cuda = None
+    atrousc_fn = None
     print(f"Failed to import CUDA module: {e}")
 
 
@@ -110,7 +111,7 @@ class TestAtrouscConsistency:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         # Check exact match
         np.testing.assert_array_almost_equal(
@@ -130,7 +131,7 @@ class TestAtrouscConsistency:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         # Check exact match
         np.testing.assert_array_almost_equal(
@@ -150,7 +151,7 @@ class TestAtrouscConsistency:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         # Check exact match
         np.testing.assert_array_almost_equal(
@@ -170,7 +171,7 @@ class TestAtrouscConsistency:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         # Check exact match
         np.testing.assert_array_almost_equal(
@@ -190,7 +191,7 @@ class TestAtrouscConsistency:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         # Check match with appropriate tolerance for extreme values
         np.testing.assert_array_almost_equal(
@@ -210,7 +211,7 @@ class TestAtrouscConsistency:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         # Check exact match
         np.testing.assert_array_almost_equal(
@@ -230,7 +231,7 @@ class TestAtrouscConsistency:
             x_cuda = torch.from_numpy(x).cuda()
             h_cuda = torch.from_numpy(h).cuda()
             M_cuda = torch.from_numpy(M)
-            cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+            cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
             
             # Check that outputs have same shape
             assert cpp_result.shape == cuda_result.shape, \
@@ -278,7 +279,7 @@ class TestAtrouscPrecision:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         # Check relative error
         relative_error = np.abs(cpp_result - cuda_result) / (np.abs(cpp_result) + 1e-10)
@@ -310,7 +311,7 @@ class TestAtrouscPrecision:
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
         cuda_results = [
-            atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+            atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
             for _ in range(3)
         ]
         
@@ -332,7 +333,7 @@ class TestAtrouscPrecision:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         # Check dtypes
         assert cpp_result.dtype == cuda_result.dtype, \
@@ -360,7 +361,7 @@ class TestAtrouscEdgeCases:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         np.testing.assert_array_almost_equal(
             cpp_result, cuda_result, decimal=10,
@@ -381,7 +382,7 @@ class TestAtrouscEdgeCases:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         np.testing.assert_array_almost_equal(
             cpp_result, cuda_result, decimal=10,
@@ -401,7 +402,7 @@ class TestAtrouscEdgeCases:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         # Both should return zero
         np.testing.assert_array_almost_equal(
@@ -430,7 +431,7 @@ class TestAtrouscEdgeCases:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         # Both should return zero
         np.testing.assert_array_almost_equal(
@@ -469,7 +470,7 @@ class TestAtrouscEdgeCases:
             x_cuda = torch.from_numpy(x).cuda()
             h_cuda = torch.from_numpy(h).cuda()
             M_cuda = torch.from_numpy(M)
-            cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+            cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
             
             # Check exact match for all cases
             np.testing.assert_array_almost_equal(
@@ -497,7 +498,7 @@ class TestAtrouscEdgeCases:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         # Should have small output
         assert cpp_result.size > 0, "C++ result is empty"
@@ -531,7 +532,7 @@ class TestAtrouscEdgeCases:
             x_cuda = torch.from_numpy(x).cuda()
             h_cuda = torch.from_numpy(h).cuda()
             M_cuda = torch.from_numpy(M)
-            cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+            cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
             
             np.testing.assert_array_almost_equal(
                 cpp_result, cuda_result, decimal=10,
@@ -560,7 +561,7 @@ class TestAtrouscStatistics:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         # Compare statistical properties
         cpp_mean = np.mean(cpp_result)
@@ -598,7 +599,7 @@ class TestAtrouscStatistics:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         M_cuda = torch.from_numpy(M)
-        cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda).cpu().numpy()
+        cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda).cpu().numpy()
         
         # Calculate energy
         cpp_energy = np.sum(cpp_result ** 2)
@@ -641,11 +642,11 @@ class TestAtrouscPerformance:
             x_cuda = torch.from_numpy(x).cuda()
             h_cuda = torch.from_numpy(h).cuda()
             M_cuda = torch.from_numpy(M)
-            _ = atrousc_cuda(x_cuda, h_cuda, M_cuda)
+            _ = atrousc_fn(x_cuda, h_cuda, M_cuda)
             torch.cuda.synchronize()
             
             start = time.perf_counter()
-            cuda_result = atrousc_cuda(x_cuda, h_cuda, M_cuda)
+            cuda_result = atrousc_fn(x_cuda, h_cuda, M_cuda)
             torch.cuda.synchronize()
             cuda_time = (time.perf_counter() - start) * 1000
             

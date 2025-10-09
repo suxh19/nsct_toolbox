@@ -21,7 +21,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from nsct_python.core import nsctdec as nsctdec_numpy, nsctrec as nsctrec_numpy
-from nsct_torch.core_torch import nsctdec as nsctdec_torch, nsctrec as nsctrec_torch
+from nsct_torch.core import nsctdec as nsctdec_torch, nsctrec as nsctrec_torch
 
 
 def parse_args() -> argparse.Namespace:

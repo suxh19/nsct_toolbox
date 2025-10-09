@@ -44,12 +44,12 @@ if sys.platform == 'win32' and sys.version_info >= (3, 8):
     except Exception:
         pass
 
-from nsct_torch.core_torch import nssfbdec, nssfbrec, nsfbdec, nsfbrec, nsdfbdec, nsdfbrec, nsctdec, nsctrec
-from nsct_torch.filters_torch import (
+from nsct_torch.core import nssfbdec, nssfbrec, nsfbdec, nsfbrec, nsdfbdec, nsdfbrec, nsctdec, nsctrec
+from nsct_torch.filters import (
     efilter2, dmaxflat, ldfilter, ld2quin, mctrans,
     dfilters, atrousfilters, parafilters
 )
-from nsct_torch.utils_torch import (
+from nsct_torch.utils import (
     extend2, upsample2df, modulate2, resampz, qupz, symext
 )
 

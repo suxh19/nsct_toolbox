@@ -200,5 +200,5 @@ pytest pytests/test_nsct_image_reconstruction.py::TestNSCTImageReconstruction::t
 
 - 主项目文档: `AGENTS.md`
 - 编码规范: `.github/instructions/user.instructions.md`
-- PyTorch版本测试: `test_core_torch.py`
+- PyTorch版本测试: `test_core.py`
 - MATLAB对照测试: `test_nsctdec.py`

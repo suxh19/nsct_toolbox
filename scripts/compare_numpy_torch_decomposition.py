@@ -23,7 +23,7 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from nsct_python.core import nsctdec as nsctdec_np, nsctrec as nsctrec_np
-from nsct_torch.core_torch import nsctdec as nsctdec_torch, nsctrec as nsctrec_torch
+from nsct_torch.core import nsctdec as nsctdec_torch, nsctrec as nsctrec_torch
 
 
 def load_test_image(image_path: Path) -> np.ndarray:

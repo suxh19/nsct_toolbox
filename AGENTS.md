@@ -2,9 +2,9 @@
 
 ## Project Structure & Module Organization
 - `nsct_python/` hosts the Python/NumPy API for nonsubsampled contourlet transforms (CPU-based). Core numerical routines live in `core.py`, `filters.py`, and `utils.py`.
-- `nsct_torch/` provides **CUDA-only** PyTorch implementations. The core functions (`zconv2_cuda`, `atrousc_cuda`) require GPU tensors and will fail on CPU. C++/CUDA bindings remain inside `atrousc_cuda/` and `zconv2_cuda/`.
+- `nsct_torch/` provides **CUDA-only** PyTorch implementations. The core functions (`zconv2`, `atrousc`) require GPU tensors and will fail on CPU. C++/CUDA bindings remain inside `atrousc/` and `zconv2/`.
 - Reusable fixtures and reference data belong in `data/` and `mat_tests/`; MATLAB sources stay in `nsct_matlab/` for parity checks. Public documentation lives under `docs/`.
-- Tests belong in `pytests/`, mirroring module names. `test_core_torch.py` requires CUDA and will skip all tests if GPU is unavailable. Integration and comparison helpers reside in `scripts/`, e.g. `run_python_nsct.py`. Avoid modifying `test_image.jpg` unless you regenerate goldens.
+- Tests belong in `pytests/`, mirroring module names. `test_core.py` requires CUDA and will skip all tests if GPU is unavailable. Integration and comparison helpers reside in `scripts/`, e.g. `run_python_nsct.py`. Avoid modifying `test_image.jpg` unless you regenerate goldens.
 
 ## Build, Test, and Development Commands
 - `python -m pip install -r requirements.txt` — lightweight development install; extend this file when new Python deps land.
@@ -15,7 +15,7 @@
 ## Coding Style & Naming Conventions
 - Enforce Black formatting with 100-character lines and the paired isort profile (`black . && isort .` on touched files).
 - Prefer type hints and NumPy-style docstrings as in `nsct_python/core.py`; keep public APIs snake_case, classes PascalCase, modules lowercase.
-- Mirror NumPy signatures in Torch code; shared helpers belong in `utils.py` and `utils_torch.py`.
+- Mirror NumPy signatures in Torch code; shared helpers belong in `utils.py`.
 
 ## Testing Guidelines
 - Add tests under `pytests/` using files named `test_*.py` and functions `test_*`; reuse existing fixtures for filters and sample images.

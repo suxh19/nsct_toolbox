@@ -1,364 +1,628 @@
 """
-Test suite for utils.py functions
-Tests Python implementation against MATLAB reference outputs
+Pytest tests for nsct_torch/utils.py
+
+Tests numerical accuracy, precision, shape consistency, and one-to-one 
+consistency between NumPy (nsct_python/utils.py) and PyTorch (nsct_torch/utils.py) implementations.
 """
 
-import numpy as np
 import pytest
-from scipy.io import loadmat
+import numpy as np
+import torch
 import sys
 from pathlib import Path
 
-# Add parent directory to path to import nsct_python module
+# Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from nsct_python.utils import extend2, upsample2df, modulate2, resampz, qupz
+from nsct_python.utils import (
+    extend2 as extend2_np,
+    symext as symext_np,
+    upsample2df as upsample2df_np,
+    modulate2 as modulate2_np,
+    resampz as resampz_np,
+    qupz as qupz_np
+)
+
+from nsct_torch.utils import (
+    extend2 as extend2_torch,
+    symext as symext_torch,
+    upsample2df as upsample2df_torch,
+    modulate2 as modulate2_torch,
+    resampz as resampz_torch,
+    qupz as qupz_torch
+)
 
 
-# Load MATLAB test results
-MATLAB_RESULTS_PATH = Path(__file__).parent.parent / 'data/test_utils_results.mat'
+# ============================================================================
+# Helper functions for testing
+# ============================================================================
+
+def assert_tensors_close(torch_result, np_result, rtol=1e-7, atol=1e-7):
+    """Assert that torch and numpy results are close."""
+    torch_np = torch_result.cpu().numpy()
+    assert torch_np.shape == np_result.shape, \
+        f"Shape mismatch: torch {torch_np.shape} vs numpy {np_result.shape}"
+    np.testing.assert_allclose(torch_np, np_result, rtol=rtol, atol=atol)
 
 
-@pytest.fixture(scope='module')
-def matlab_results():
-    """Load MATLAB reference results"""
-    if not MATLAB_RESULTS_PATH.exists():
-        pytest.skip(f"MATLAB results file not found: {MATLAB_RESULTS_PATH}")
-    
-    mat_data = loadmat(str(MATLAB_RESULTS_PATH))
-    return mat_data['test_results'][0, 0]
+def assert_exact_match(torch_result, np_result):
+    """Assert that torch and numpy results match exactly."""
+    torch_np = torch_result.cpu().numpy()
+    assert torch_np.shape == np_result.shape, \
+        f"Shape mismatch: torch {torch_np.shape} vs numpy {np_result.shape}"
+    np.testing.assert_array_equal(torch_np, np_result)
 
+
+# ============================================================================
+# Test extend2 function
+# ============================================================================
 
 class TestExtend2:
-    """Test cases for extend2 function"""
+    """Test cases for extend2 function."""
     
-    def test_extend2_periodic_basic(self, matlab_results):
-        """Test extend2 with periodic extension (basic)"""
-        test_data = matlab_results['test1'][0, 0]
+    @pytest.mark.parametrize("shape", [(4, 4), (5, 7), (8, 6), (10, 10)])
+    @pytest.mark.parametrize("ru,rd,cl,cr", [
+        (1, 1, 1, 1),
+        (2, 2, 2, 2),
+        (1, 2, 3, 4),
+        (0, 1, 0, 1),
+    ])
+    def test_extend2_per_mode(self, shape, ru, rd, cl, cr):
+        """Test periodic extension mode with various shapes and padding."""
+        x_np = np.random.randn(*shape)
+        x_torch = torch.from_numpy(x_np)
         
-        input_mat = test_data['input']
-        ru = int(test_data['ru'][0, 0])
-        rd = int(test_data['rd'][0, 0])
-        cl = int(test_data['cl'][0, 0])
-        cr = int(test_data['cr'][0, 0])
-        extmod = str(test_data['extmod'][0])
-        expected_output = test_data['output']
+        result_np = extend2_np(x_np, ru, rd, cl, cr, 'per')
+        result_torch = extend2_torch(x_torch, ru, rd, cl, cr, 'per')
         
-        result = extend2(input_mat, ru, rd, cl, cr, extmod)
+        # Check shape
+        expected_shape = (shape[0] + ru + rd, shape[1] + cl + cr)
+        assert result_torch.shape == expected_shape
         
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 1 passed: extend2 periodic basic ({result.shape})")
+        # Check numerical consistency
+        assert_tensors_close(result_torch, result_np)
     
-    def test_extend2_periodic_small(self, matlab_results):
-        """Test extend2 with periodic extension (small)"""
-        test_data = matlab_results['test2'][0, 0]
+    @pytest.mark.parametrize("shape", [(4, 4), (6, 8), (10, 10)])
+    def test_extend2_qper_row_mode(self, shape):
+        """Test quincunx periodized extension in row."""
+        x_np = np.random.randn(*shape)
+        x_torch = torch.from_numpy(x_np)
         
-        input_mat = test_data['input']
-        ru = int(test_data['ru'][0, 0])
-        rd = int(test_data['rd'][0, 0])
-        cl = int(test_data['cl'][0, 0])
-        cr = int(test_data['cr'][0, 0])
-        extmod = str(test_data['extmod'][0])
-        expected_output = test_data['output']
+        ru, rd, cl, cr = 2, 2, 2, 2
         
-        result = extend2(input_mat, ru, rd, cl, cr, extmod)
+        result_np = extend2_np(x_np, ru, rd, cl, cr, 'qper_row')
+        result_torch = extend2_torch(x_torch, ru, rd, cl, cr, 'qper_row')
         
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 2 passed: extend2 periodic small ({result.shape})")
+        # Check shape
+        assert result_torch.shape == result_np.shape
+        
+        # Check numerical consistency
+        assert_tensors_close(result_torch, result_np)
     
-    def test_extend2_qper_row(self, matlab_results):
-        """Test extend2 with quincunx periodic extension (row)"""
-        test_data = matlab_results['test3'][0, 0]
+    @pytest.mark.parametrize("shape", [(4, 4), (6, 8), (10, 10)])
+    def test_extend2_qper_col_mode(self, shape):
+        """Test quincunx periodized extension in column."""
+        x_np = np.random.randn(*shape)
+        x_torch = torch.from_numpy(x_np)
         
-        input_mat = test_data['input']
-        ru = int(test_data['ru'][0, 0])
-        rd = int(test_data['rd'][0, 0])
-        cl = int(test_data['cl'][0, 0])
-        cr = int(test_data['cr'][0, 0])
-        extmod = str(test_data['extmod'][0])
-        expected_output = test_data['output']
+        ru, rd, cl, cr = 2, 2, 2, 2
         
-        result = extend2(input_mat, ru, rd, cl, cr, extmod)
+        result_np = extend2_np(x_np, ru, rd, cl, cr, 'qper_col')
+        result_torch = extend2_torch(x_torch, ru, rd, cl, cr, 'qper_col')
         
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 3 passed: extend2 qper_row ({result.shape})")
+        # Check shape
+        assert result_torch.shape == result_np.shape
+        
+        # Check numerical consistency
+        assert_tensors_close(result_torch, result_np)
     
-    def test_extend2_qper_col(self, matlab_results):
-        """Test extend2 with quincunx periodic extension (col)"""
-        test_data = matlab_results['test4'][0, 0]
-        
-        input_mat = test_data['input']
-        ru = int(test_data['ru'][0, 0])
-        rd = int(test_data['rd'][0, 0])
-        cl = int(test_data['cl'][0, 0])
-        cr = int(test_data['cr'][0, 0])
-        extmod = str(test_data['extmod'][0])
-        expected_output = test_data['output']
-        
-        result = extend2(input_mat, ru, rd, cl, cr, extmod)
-        
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 4 passed: extend2 qper_col ({result.shape})")
+    def test_extend2_invalid_mode(self):
+        """Test that invalid mode raises ValueError."""
+        x_torch = torch.randn(4, 4)
+        with pytest.raises(ValueError):
+            extend2_torch(x_torch, 1, 1, 1, 1, 'invalid')
+    
+    def test_extend2_dtype_preservation(self):
+        """Test that dtype is preserved."""
+        for dtype in [torch.float32, torch.float64]:
+            x_torch = torch.randn(4, 4, dtype=dtype)
+            result = extend2_torch(x_torch, 1, 1, 1, 1, 'per')
+            assert result.dtype == dtype
+    
+    def test_extend2_device_preservation(self):
+        """Test that device is preserved."""
+        x_torch = torch.randn(4, 4)
+        result = extend2_torch(x_torch, 1, 1, 1, 1, 'per')
+        assert result.device == x_torch.device
 
+
+# ============================================================================
+# Test symext function
+# ============================================================================
+
+class TestSymext:
+    """Test cases for symext function."""
+    
+    @pytest.mark.parametrize("img_shape", [(4, 4), (5, 7), (8, 6)])
+    @pytest.mark.parametrize("filt_shape", [(3, 3), (5, 5), (3, 5)])
+    @pytest.mark.parametrize("shift", [[0, 0], [1, 1], [2, 2]])
+    def test_symext_basic(self, img_shape, filt_shape, shift):
+        """Test symmetric extension with various configurations."""
+        x_np = np.random.randn(*img_shape)
+        h_np = np.random.randn(*filt_shape)
+        
+        x_torch = torch.from_numpy(x_np)
+        h_torch = torch.from_numpy(h_np)
+        
+        result_np = symext_np(x_np, h_np, shift)
+        result_torch = symext_torch(x_torch, h_torch, shift)
+        
+        # Check shape consistency between implementations
+        assert result_torch.shape == result_np.shape, \
+            f"Shape mismatch: torch {result_torch.shape} vs numpy {result_np.shape}"
+        
+        # The expected shape should be close to (m+p-1, n+q-1), but the final 
+        # size depends on the extension logic and shift parameters
+        # So we just verify the implementations are consistent
+        
+        # Check numerical consistency
+        assert_tensors_close(result_torch, result_np)
+    
+    def test_symext_specific_case(self):
+        """Test specific case from documentation."""
+        x_np = np.arange(16).reshape(4, 4)
+        h_np = np.ones((3, 3))
+        shift = [1, 1]
+        
+        x_torch = torch.from_numpy(x_np.astype(np.float64))
+        h_torch = torch.from_numpy(h_np)
+        
+        result_np = symext_np(x_np, h_np, shift)
+        result_torch = symext_torch(x_torch, h_torch, shift)
+        
+        assert result_torch.shape == (6, 6)
+        assert_tensors_close(result_torch, result_np)
+    
+    def test_symext_dtype_preservation(self):
+        """Test that dtype is preserved."""
+        x_np = np.random.randn(4, 4)
+        h_np = np.random.randn(3, 3)
+        
+        for dtype in [torch.float32, torch.float64]:
+            x_torch = torch.from_numpy(x_np).to(dtype)
+            h_torch = torch.from_numpy(h_np).to(dtype)
+            result = symext_torch(x_torch, h_torch, [1, 1])
+            assert result.dtype == dtype
+
+
+# ============================================================================
+# Test upsample2df function
+# ============================================================================
 
 class TestUpsample2df:
-    """Test cases for upsample2df function"""
+    """Test cases for upsample2df function."""
     
-    def test_upsample2df_power1(self, matlab_results):
-        """Test upsample2df with power=1"""
-        test_data = matlab_results['test5'][0, 0]
+    @pytest.mark.parametrize("shape", [(2, 2), (3, 3), (4, 5)])
+    @pytest.mark.parametrize("power", [1, 2, 3])
+    def test_upsample2df_basic(self, shape, power):
+        """Test upsampling with various shapes and powers."""
+        h_np = np.random.randn(*shape)
+        h_torch = torch.from_numpy(h_np)
         
-        input_mat = test_data['input']
-        power = int(test_data['power'][0, 0])
-        expected_output = test_data['output']
+        result_np = upsample2df_np(h_np, power)
+        result_torch = upsample2df_torch(h_torch, power)
         
-        result = upsample2df(input_mat, power)
+        # Check shape
+        factor = 2 ** power
+        expected_shape = (shape[0] * factor, shape[1] * factor)
+        assert result_torch.shape == expected_shape
         
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 5 passed: upsample2df power=1 ({result.shape})")
+        # Check numerical consistency
+        assert_tensors_close(result_torch, result_np)
     
-    def test_upsample2df_power2(self, matlab_results):
-        """Test upsample2df with power=2"""
-        test_data = matlab_results['test6'][0, 0]
+    def test_upsample2df_specific_case(self):
+        """Test specific case: [[1,2],[3,4]] with power=1."""
+        h_np = np.array([[1, 2], [3, 4]], dtype=np.float64)
+        h_torch = torch.from_numpy(h_np)
         
-        input_mat = test_data['input']
-        power = int(test_data['power'][0, 0])
-        expected_output = test_data['output']
+        result_np = upsample2df_np(h_np, power=1)
+        result_torch = upsample2df_torch(h_torch, power=1)
         
-        result = upsample2df(input_mat, power)
+        expected = np.array([[1, 0, 2, 0], 
+                            [0, 0, 0, 0], 
+                            [3, 0, 4, 0], 
+                            [0, 0, 0, 0]], dtype=np.float64)
         
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 6 passed: upsample2df power=2 ({result.shape})")
+        assert_tensors_close(result_torch, expected)
+        assert_exact_match(result_torch, result_np)
+    
+    def test_upsample2df_zeros_preserved(self):
+        """Test that zeros are inserted correctly."""
+        h_np = np.ones((2, 2))
+        h_torch = torch.from_numpy(h_np)
+        
+        result_torch = upsample2df_torch(h_torch, power=1)
+        
+        # Check that zeros are in the right places
+        assert result_torch[0, 1].item() == 0
+        assert result_torch[1, 0].item() == 0
+        assert result_torch[1, 1].item() == 0
+        
+        # Check that original values are preserved
+        assert result_torch[0, 0].item() == 1
+        assert result_torch[0, 2].item() == 1
+        assert result_torch[2, 0].item() == 1
+        assert result_torch[2, 2].item() == 1
 
+
+# ============================================================================
+# Test modulate2 function
+# ============================================================================
 
 class TestModulate2:
-    """Test cases for modulate2 function"""
+    """Test cases for modulate2 function."""
     
-    def test_modulate2_row(self, matlab_results):
-        """Test modulate2 with row modulation"""
-        test_data = matlab_results['test7'][0, 0]
+    @pytest.mark.parametrize("shape", [(3, 4), (4, 4), (5, 6)])
+    @pytest.mark.parametrize("mode", ['r', 'c', 'b'])
+    def test_modulate2_basic(self, shape, mode):
+        """Test modulation with various shapes and modes."""
+        x_np = np.random.randn(*shape)
+        x_torch = torch.from_numpy(x_np)
         
-        input_mat = test_data['input']
-        mod_type = str(test_data['type'][0])
-        center = test_data['center'][0].tolist()
-        expected_output = test_data['output']
+        result_np = modulate2_np(x_np, mode)
+        result_torch = modulate2_torch(x_torch, mode)
         
-        result = modulate2(input_mat, mod_type, center)
+        # Check shape
+        assert result_torch.shape == shape
         
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_almost_equal(result, expected_output, decimal=10)
-        print(f"✓ Test 7 passed: modulate2 row ({result.shape})")
+        # Check numerical consistency
+        assert_tensors_close(result_torch, result_np)
     
-    def test_modulate2_column(self, matlab_results):
-        """Test modulate2 with column modulation"""
-        test_data = matlab_results['test8'][0, 0]
+    def test_modulate2_with_center(self):
+        """Test modulation with custom center."""
+        x_np = np.random.randn(4, 4)
+        x_torch = torch.from_numpy(x_np)
+        center = [1, 1]
         
-        input_mat = test_data['input']
-        mod_type = str(test_data['type'][0])
-        center = test_data['center'][0].tolist()
-        expected_output = test_data['output']
+        result_np = modulate2_np(x_np, 'b', center)
+        result_torch = modulate2_torch(x_torch, 'b', center)
         
-        result = modulate2(input_mat, mod_type, center)
-        
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_almost_equal(result, expected_output, decimal=10)
-        print(f"✓ Test 8 passed: modulate2 column ({result.shape})")
+        assert_tensors_close(result_torch, result_np)
     
-    def test_modulate2_both(self, matlab_results):
-        """Test modulate2 with both directions"""
-        test_data = matlab_results['test9'][0, 0]
+    def test_modulate2_specific_case(self):
+        """Test specific case: ones matrix modulated."""
+        m_np = np.ones((3, 4))
+        m_torch = torch.ones((3, 4), dtype=torch.float64)
         
-        input_mat = test_data['input']
-        mod_type = str(test_data['type'][0])
-        center = test_data['center'][0].tolist()
-        expected_output = test_data['output']
+        result_np = modulate2_np(m_np, 'b')
+        result_torch = modulate2_torch(m_torch, 'b')
         
-        result = modulate2(input_mat, mod_type, center)
+        # Check specific values
+        assert result_torch[0, 0].item() == -1.0
+        assert result_torch[1, 0].item() == 1.0
+        assert result_torch[0, 1].item() == 1.0
         
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_almost_equal(result, expected_output, decimal=10)
-        print(f"✓ Test 9 passed: modulate2 both ({result.shape})")
+        assert_tensors_close(result_torch, result_np)
     
-    def test_modulate2_both_with_center(self, matlab_results):
-        """Test modulate2 with both directions and center offset"""
-        test_data = matlab_results['test10'][0, 0]
+    def test_modulate2_alternating_signs(self):
+        """Test that modulation creates alternating sign pattern."""
+        x_torch = torch.ones((4, 4), dtype=torch.float64)
+        result = modulate2_torch(x_torch, 'b')
         
-        input_mat = test_data['input']
-        mod_type = str(test_data['type'][0])
-        center = test_data['center'][0].tolist()
-        expected_output = test_data['output']
-        
-        result = modulate2(input_mat, mod_type, center)
-        
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_almost_equal(result, expected_output, decimal=10)
-        print(f"✓ Test 10 passed: modulate2 both with center ({result.shape})")
+        # Check checkerboard pattern (alternating signs)
+        for i in range(4):
+            for j in range(4):
+                expected_sign = (-1) ** (i + j)
+                # Allow for numerical errors
+                assert abs(result[i, j].item() - expected_sign) < 1e-10
 
+
+# ============================================================================
+# Test resampz function
+# ============================================================================
 
 class TestResampz:
-    """Test cases for resampz function"""
+    """Test cases for resampz function."""
     
-    def test_resampz_type1(self, matlab_results):
-        """Test resampz type 1 (R1 = [1,1;0,1])"""
-        test_data = matlab_results['test11'][0, 0]
+    @pytest.mark.parametrize("type", [1, 2, 3, 4])
+    @pytest.mark.parametrize("shift", [1, 2])
+    def test_resampz_basic(self, type, shift):
+        """Test resampling with all types."""
+        x_np = np.random.randn(3, 4)
+        x_torch = torch.from_numpy(x_np)
         
-        input_mat = test_data['input']
-        resamp_type = int(test_data['type'][0, 0])
-        shift = int(test_data['shift'][0, 0])
-        expected_output = test_data['output']
+        result_np = resampz_np(x_np, type, shift)
+        result_torch = resampz_torch(x_torch, type, shift)
         
-        result = resampz(input_mat, resamp_type, shift)
+        # Check shape
+        assert result_torch.shape == result_np.shape
         
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 11 passed: resampz type 1 ({result.shape})")
+        # Check numerical consistency
+        assert_tensors_close(result_torch, result_np)
     
-    def test_resampz_type2(self, matlab_results):
-        """Test resampz type 2 (R2 = [1,-1;0,1])"""
-        test_data = matlab_results['test12'][0, 0]
+    def test_resampz_type1_specific(self):
+        """Test type 1 (vertical shearing) with specific case."""
+        r_in_np = np.arange(1, 7).reshape(2, 3)
+        r_in_torch = torch.from_numpy(r_in_np.astype(np.float64))
         
-        input_mat = test_data['input']
-        resamp_type = int(test_data['type'][0, 0])
-        shift = int(test_data['shift'][0, 0])
-        expected_output = test_data['output']
+        result_np = resampz_np(r_in_np, 1, shift=1)
+        result_torch = resampz_torch(r_in_torch, 1, shift=1)
         
-        result = resampz(input_mat, resamp_type, shift)
+        expected = np.array([[0, 0, 3], [0, 2, 6], [1, 5, 0], [4, 0, 0]], 
+                           dtype=np.float64)
         
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 12 passed: resampz type 2 ({result.shape})")
+        assert_exact_match(result_torch, expected)
+        assert_exact_match(result_torch, result_np)
     
-    def test_resampz_type3(self, matlab_results):
-        """Test resampz type 3 (R3 = [1,0;1,1])"""
-        test_data = matlab_results['test13'][0, 0]
+    def test_resampz_type3_specific(self):
+        """Test type 3 (horizontal shearing) with specific case."""
+        r_in_np = np.arange(1, 7).reshape(2, 3)
+        r_in_torch = torch.from_numpy(r_in_np.astype(np.float64))
         
-        input_mat = test_data['input']
-        resamp_type = int(test_data['type'][0, 0])
-        shift = int(test_data['shift'][0, 0])
-        expected_output = test_data['output']
+        result_np = resampz_np(r_in_np, 3, shift=1)
+        result_torch = resampz_torch(r_in_torch, 3, shift=1)
         
-        result = resampz(input_mat, resamp_type, shift)
+        expected = np.array([[0, 1, 2, 3], [4, 5, 6, 0]], dtype=np.float64)
         
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 13 passed: resampz type 3 ({result.shape})")
+        assert_exact_match(result_torch, expected)
+        assert_exact_match(result_torch, result_np)
     
-    def test_resampz_type4(self, matlab_results):
-        """Test resampz type 4 (R4 = [1,0;-1,1])"""
-        test_data = matlab_results['test14'][0, 0]
-        
-        input_mat = test_data['input']
-        resamp_type = int(test_data['type'][0, 0])
-        shift = int(test_data['shift'][0, 0])
-        expected_output = test_data['output']
-        
-        result = resampz(input_mat, resamp_type, shift)
-        
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 14 passed: resampz type 4 ({result.shape})")
+    def test_resampz_invalid_type(self):
+        """Test that invalid type raises ValueError."""
+        x_torch = torch.randn(3, 4)
+        with pytest.raises(ValueError):
+            resampz_torch(x_torch, 5, shift=1)
     
-    def test_resampz_type1_shift2(self, matlab_results):
-        """Test resampz type 1 with shift=2"""
-        test_data = matlab_results['test15'][0, 0]
+    def test_resampz_empty_result(self):
+        """Test handling of edge cases that might produce empty results."""
+        x_np = np.zeros((2, 2))
+        x_torch = torch.from_numpy(x_np)
         
-        input_mat = test_data['input']
-        resamp_type = int(test_data['type'][0, 0])
-        shift = int(test_data['shift'][0, 0])
-        expected_output = test_data['output']
+        result_np = resampz_np(x_np, 1, shift=1)
+        result_torch = resampz_torch(x_torch, 1, shift=1)
         
-        result = resampz(input_mat, resamp_type, shift)
-        
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 15 passed: resampz type 1 shift=2 ({result.shape})")
+        # Both should handle zeros gracefully
+        assert result_torch.shape == result_np.shape
 
+
+# ============================================================================
+# Test qupz function
+# ============================================================================
 
 class TestQupz:
-    """Test cases for qupz function"""
+    """Test cases for qupz function."""
     
-    def test_qupz_type1_small(self, matlab_results):
-        """Test qupz type 1 with 2x2 matrix"""
-        test_data = matlab_results['test16'][0, 0]
+    @pytest.mark.parametrize("type", [1, 2])
+    def test_qupz_basic(self, type):
+        """Test quincunx upsampling with both types."""
+        x_np = np.random.randn(3, 4)
+        x_torch = torch.from_numpy(x_np)
         
-        input_mat = test_data['input']
-        qupz_type = int(test_data['type'][0, 0])
-        expected_output = test_data['output']
+        result_np = qupz_np(x_np, type)
+        result_torch = qupz_torch(x_torch, type)
         
-        result = qupz(input_mat, qupz_type)
+        # Check shape
+        assert result_torch.shape == result_np.shape
         
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 16 passed: qupz type 1 2x2 ({result.shape})")
+        # Check numerical consistency
+        assert_tensors_close(result_torch, result_np)
     
-    def test_qupz_type2_small(self, matlab_results):
-        """Test qupz type 2 with 2x2 matrix"""
-        test_data = matlab_results['test17'][0, 0]
+    def test_qupz_type1_specific(self):
+        """Test type 1 with specific case."""
+        q_in_np = np.array([[1, 2], [3, 4]], dtype=np.float64)
+        q_in_torch = torch.from_numpy(q_in_np)
         
-        input_mat = test_data['input']
-        qupz_type = int(test_data['type'][0, 0])
-        expected_output = test_data['output']
+        result_np = qupz_np(q_in_np, 1)
+        result_torch = qupz_torch(q_in_torch, 1)
         
-        result = qupz(input_mat, qupz_type)
+        expected = np.array([[0, 2, 0],
+                            [1, 0, 4],
+                            [0, 3, 0]], dtype=np.float64)
         
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 17 passed: qupz type 2 2x2 ({result.shape})")
+        assert_exact_match(result_torch, expected)
+        assert_exact_match(result_torch, result_np)
     
-    def test_qupz_type1_large(self, matlab_results):
-        """Test qupz type 1 with 3x3 matrix"""
-        test_data = matlab_results['test18'][0, 0]
+    def test_qupz_type2_specific(self):
+        """Test type 2 with specific case."""
+        q_in_np = np.array([[1, 2], [3, 4]], dtype=np.float64)
+        q_in_torch = torch.from_numpy(q_in_np)
         
-        input_mat = test_data['input']
-        qupz_type = int(test_data['type'][0, 0])
-        expected_output = test_data['output']
+        result_np = qupz_np(q_in_np, 2)
+        result_torch = qupz_torch(q_in_torch, 2)
         
-        result = qupz(input_mat, qupz_type)
-        
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 18 passed: qupz type 1 3x3 ({result.shape})")
+        # Check shape and numerical consistency
+        assert result_torch.shape == result_np.shape
+        assert_exact_match(result_torch, result_np)
     
-    def test_qupz_type2_large(self, matlab_results):
-        """Test qupz type 2 with 3x3 matrix"""
-        test_data = matlab_results['test19'][0, 0]
+    def test_qupz_invalid_type(self):
+        """Test that invalid type raises ValueError."""
+        x_torch = torch.randn(3, 3)
+        with pytest.raises(ValueError):
+            qupz_torch(x_torch, 3)
+    
+    def test_qupz_zeros_placement(self):
+        """Test that zeros are placed correctly in output."""
+        q_in_torch = torch.tensor([[1, 2], [3, 4]], dtype=torch.float32)
+        result = qupz_torch(q_in_torch, 1)
         
-        input_mat = test_data['input']
-        qupz_type = int(test_data['type'][0, 0])
-        expected_output = test_data['output']
+        # Check specific zero positions
+        assert result[0, 0].item() == 0
+        assert result[1, 1].item() == 0
+        assert result[2, 2].item() == 0
         
-        result = qupz(input_mat, qupz_type)
+        # Check non-zero positions
+        assert result[0, 1].item() == 2
+        assert result[1, 0].item() == 1
+        assert result[1, 2].item() == 4
+        assert result[2, 1].item() == 3
+    
+    @pytest.mark.parametrize("shape", [(2, 2), (3, 3), (4, 5), (5, 4)])
+    def test_qupz_various_shapes(self, shape):
+        """Test qupz with various input shapes."""
+        x_np = np.random.randn(*shape)
+        x_torch = torch.from_numpy(x_np)
         
-        assert result.shape == expected_output.shape, \
-            f"Shape mismatch: {result.shape} vs {expected_output.shape}"
-        np.testing.assert_array_equal(result, expected_output)
-        print(f"✓ Test 19 passed: qupz type 2 3x3 ({result.shape})")
+        for type in [1, 2]:
+            result_np = qupz_np(x_np, type)
+            result_torch = qupz_torch(x_torch, type)
+            
+            assert result_torch.shape == result_np.shape
+            assert_tensors_close(result_torch, result_np)
+
+
+# ============================================================================
+# Integration tests
+# ============================================================================
+
+class TestIntegration:
+    """Integration tests combining multiple functions."""
+    
+    def test_extend_and_modulate(self):
+        """Test combining extend2 and modulate2."""
+        x_np = np.random.randn(4, 4)
+        x_torch = torch.from_numpy(x_np)
+        
+        # Extend
+        ext_np = extend2_np(x_np, 1, 1, 1, 1, 'per')
+        ext_torch = extend2_torch(x_torch, 1, 1, 1, 1, 'per')
+        
+        # Modulate
+        result_np = modulate2_np(ext_np, 'b')
+        result_torch = modulate2_torch(ext_torch, 'b')
+        
+        assert_tensors_close(result_torch, result_np)
+    
+    def test_upsample_and_resample(self):
+        """Test combining upsample2df and resampz."""
+        h_np = np.random.randn(2, 2)
+        h_torch = torch.from_numpy(h_np)
+        
+        # Upsample
+        up_np = upsample2df_np(h_np, power=1)
+        up_torch = upsample2df_torch(h_torch, power=1)
+        
+        # Resample
+        result_np = resampz_np(up_np, 1, shift=1)
+        result_torch = resampz_torch(up_torch, 1, shift=1)
+        
+        assert_tensors_close(result_torch, result_np)
+    
+    def test_symext_consistency(self):
+        """Test symext with realistic filter sizes."""
+        x_np = np.random.randn(16, 16)
+        h_np = np.random.randn(7, 7)
+        x_torch = torch.from_numpy(x_np)
+        h_torch = torch.from_numpy(h_np)
+        
+        result_np = symext_np(x_np, h_np, [3, 3])
+        result_torch = symext_torch(x_torch, h_torch, [3, 3])
+        
+        assert_tensors_close(result_torch, result_np)
+
+
+# ============================================================================
+# Precision tests
+# ============================================================================
+
+class TestPrecision:
+    """Test numerical precision and stability."""
+    
+    def test_float32_precision(self):
+        """Test that float32 operations maintain acceptable precision."""
+        x_np = np.random.randn(8, 8).astype(np.float32)
+        x_torch = torch.from_numpy(x_np)
+        
+        result_np = extend2_np(x_np, 2, 2, 2, 2, 'per')
+        result_torch = extend2_torch(x_torch, 2, 2, 2, 2, 'per')
+        
+        # Float32 should still be very close
+        assert_tensors_close(result_torch, result_np, rtol=1e-6, atol=1e-6)
+    
+    def test_float64_precision(self):
+        """Test that float64 operations maintain high precision."""
+        x_np = np.random.randn(8, 8).astype(np.float64)
+        x_torch = torch.from_numpy(x_np)
+        
+        result_np = modulate2_np(x_np, 'b')
+        result_torch = modulate2_torch(x_torch, 'b')
+        
+        # Float64 should be very precise
+        assert_tensors_close(result_torch, result_np, rtol=1e-12, atol=1e-12)
+    
+    def test_large_values(self):
+        """Test with large magnitude values."""
+        x_np = np.random.randn(4, 4) * 1e6
+        x_torch = torch.from_numpy(x_np)
+        
+        result_np = extend2_np(x_np, 1, 1, 1, 1, 'per')
+        result_torch = extend2_torch(x_torch, 1, 1, 1, 1, 'per')
+        
+        # Relative tolerance matters for large values
+        assert_tensors_close(result_torch, result_np, rtol=1e-6)
+    
+    def test_small_values(self):
+        """Test with small magnitude values."""
+        x_np = np.random.randn(4, 4) * 1e-6
+        x_torch = torch.from_numpy(x_np)
+        
+        result_np = upsample2df_np(x_np, power=1)
+        result_torch = upsample2df_torch(x_torch, power=1)
+        
+        # Absolute tolerance matters for small values
+        assert_tensors_close(result_torch, result_np, atol=1e-12)
+
+
+# ============================================================================
+# Edge case tests
+# ============================================================================
+
+class TestEdgeCases:
+    """Test edge cases and boundary conditions."""
+    
+    def test_minimum_size(self):
+        """Test with minimum valid input sizes."""
+        x_np = np.array([[1.0]])
+        x_torch = torch.from_numpy(x_np)
+        
+        result_np = extend2_np(x_np, 1, 1, 1, 1, 'per')
+        result_torch = extend2_torch(x_torch, 1, 1, 1, 1, 'per')
+        
+        assert_tensors_close(result_torch, result_np)
+    
+    def test_zero_extension(self):
+        """Test with zero extension amounts."""
+        x_np = np.random.randn(4, 4)
+        x_torch = torch.from_numpy(x_np)
+        
+        result_np = extend2_np(x_np, 0, 0, 0, 0, 'per')
+        result_torch = extend2_torch(x_torch, 0, 0, 0, 0, 'per')
+        
+        # Should return the same array
+        assert_tensors_close(result_torch, x_np)
+        assert_exact_match(result_torch, result_np)
+    
+    def test_asymmetric_shapes(self):
+        """Test with highly asymmetric shapes."""
+        x_np = np.random.randn(2, 10)
+        x_torch = torch.from_numpy(x_np)
+        
+        result_np = modulate2_np(x_np, 'b')
+        result_torch = modulate2_torch(x_torch, 'b')
+        
+        assert_tensors_close(result_torch, result_np)
+    
+    def test_power_zero_upsample(self):
+        """Test upsample with power=0 (no upsampling)."""
+        h_np = np.random.randn(3, 3)
+        h_torch = torch.from_numpy(h_np)
+        
+        result_np = upsample2df_np(h_np, power=0)
+        result_torch = upsample2df_torch(h_torch, power=0)
+        
+        # Should return the same array
+        assert_exact_match(result_torch, h_np)
+        assert_exact_match(result_torch, result_np)
 
 
 if __name__ == '__main__':
-    # Run tests with verbose output
-    pytest.main([__file__, '-v', '-s'])
+    pytest.main([__file__, '-v', '--tb=short'])

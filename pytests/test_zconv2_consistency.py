@@ -32,17 +32,14 @@ except ImportError as e:
 
 try:
     import torch
-    import nsct_torch.zconv2_cuda as zconv2_cuda_module
-    CUDA_AVAILABLE = torch.cuda.is_available() and zconv2_cuda_module.CUDA_AVAILABLE
-    if CUDA_AVAILABLE:
-        zconv2_cuda = zconv2_cuda_module.zconv2_cuda
-    else:
-        zconv2_cuda = None
+    import nsct_torch.zconv2 as zconv2_module
+    CUDA_AVAILABLE = torch.cuda.is_available() and zconv2_module.CUDA_AVAILABLE
+    zconv2_fn = zconv2_module.zconv2 if CUDA_AVAILABLE else None
 except ImportError as e:
     CUDA_AVAILABLE = False
     torch = None
-    zconv2_cuda = None
-    zconv2_cuda_module = None
+    zconv2_fn = None
+    zconv2_module = None
     print(f"Failed to import CUDA module: {e}")
 
 
@@ -108,7 +105,7 @@ class TestZconv2Consistency:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         mup_cuda = torch.from_numpy(mup).cuda()
-        cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+        cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
         
         # Check exact match
         np.testing.assert_array_almost_equal(
@@ -128,7 +125,7 @@ class TestZconv2Consistency:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         mup_cuda = torch.from_numpy(mup).cuda()
-        cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+        cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
         
         # Check exact match
         np.testing.assert_array_almost_equal(
@@ -148,7 +145,7 @@ class TestZconv2Consistency:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         mup_cuda = torch.from_numpy(mup).cuda()
-        cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+        cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
         
         # Check exact match
         np.testing.assert_array_almost_equal(
@@ -168,7 +165,7 @@ class TestZconv2Consistency:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         mup_cuda = torch.from_numpy(mup).cuda()
-        cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+        cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
         
         # Check exact match
         np.testing.assert_array_almost_equal(
@@ -188,7 +185,7 @@ class TestZconv2Consistency:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         mup_cuda = torch.from_numpy(mup).cuda()
-        cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+        cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
         
         # Check match with appropriate tolerance for extreme values
         np.testing.assert_array_almost_equal(
@@ -208,7 +205,7 @@ class TestZconv2Consistency:
             x_cuda = torch.from_numpy(x).cuda()
             h_cuda = torch.from_numpy(h).cuda()
             mup_cuda = torch.from_numpy(mup).cuda()
-            cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+            cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
             
             # Check that outputs have same shape
             assert cpp_result.shape == cuda_result.shape, \
@@ -254,7 +251,7 @@ class TestZconv2Precision:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         mup_cuda = torch.from_numpy(mup).cuda()
-        cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+        cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
         
         # Check relative error
         relative_error = np.abs(cpp_result - cuda_result) / (np.abs(cpp_result) + 1e-10)
@@ -286,7 +283,7 @@ class TestZconv2Precision:
         h_cuda = torch.from_numpy(h).cuda()
         mup_cuda = torch.from_numpy(mup).cuda()
         cuda_results = [
-            zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+            zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
             for _ in range(3)
         ]
         
@@ -308,7 +305,7 @@ class TestZconv2Precision:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         mup_cuda = torch.from_numpy(mup).cuda()
-        cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+        cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
         
         # Check dtypes
         assert cpp_result.dtype == cuda_result.dtype, \
@@ -336,7 +333,7 @@ class TestZconv2EdgeCases:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         mup_cuda = torch.from_numpy(mup).cuda()
-        cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+        cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
         
         np.testing.assert_array_almost_equal(
             cpp_result, cuda_result, decimal=10,
@@ -357,7 +354,7 @@ class TestZconv2EdgeCases:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         mup_cuda = torch.from_numpy(mup).cuda()
-        cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+        cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
         
         np.testing.assert_array_almost_equal(
             cpp_result, cuda_result, decimal=10,
@@ -377,7 +374,7 @@ class TestZconv2EdgeCases:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         mup_cuda = torch.from_numpy(mup).cuda()
-        cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+        cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
         
         # Both should return zero
         np.testing.assert_array_almost_equal(
@@ -406,7 +403,7 @@ class TestZconv2EdgeCases:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         mup_cuda = torch.from_numpy(mup).cuda()
-        cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+        cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
         
         # Both should return zero
         np.testing.assert_array_almost_equal(
@@ -445,7 +442,7 @@ class TestZconv2EdgeCases:
             x_cuda = torch.from_numpy(x).cuda()
             h_cuda = torch.from_numpy(h).cuda()
             mup_cuda = torch.from_numpy(mup).cuda()
-            cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+            cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
             
             np.testing.assert_array_almost_equal(
                 cpp_result, cuda_result, decimal=10,
@@ -472,7 +469,7 @@ class TestZconv2Statistics:
         x_cuda = torch.from_numpy(x).cuda()
         h_cuda = torch.from_numpy(h).cuda()
         mup_cuda = torch.from_numpy(mup).cuda()
-        cuda_result = zconv2_cuda(x_cuda, h_cuda, mup_cuda).cpu().numpy()
+        cuda_result = zconv2_fn(x_cuda, h_cuda, mup_cuda).cpu().numpy()
         
         # Compare statistical properties
         cpp_mean = np.mean(cpp_result)
