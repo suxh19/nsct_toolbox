@@ -11,9 +11,9 @@
 
 // Declare the CUDA kernel (defined in atrousc_kernel.cu)
 __global__ void atrousc_kernel(
-    const double* __restrict__ x,
-    const double* __restrict__ h,
-    double* __restrict__ out,
+    const float* __restrict__ x,
+    const float* __restrict__ h,
+    float* __restrict__ out,
     const int S_rows,
     const int S_cols,
     const int F_rows,
@@ -65,9 +65,9 @@ void atrousc_launcher(
 
     // Launch CUDA kernel
     atrousc_kernel<<<blocks, threads>>>(
-        x.data_ptr<double>(),
-        h.data_ptr<double>(),
-        out.data_ptr<double>(),
+        x.data_ptr<float>(),
+        h.data_ptr<float>(),
+        out.data_ptr<float>(),
         S_rows, S_cols,
         F_rows, F_cols,
         O_rows, O_cols,

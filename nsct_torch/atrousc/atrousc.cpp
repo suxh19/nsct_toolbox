@@ -48,9 +48,9 @@ torch::Tensor atrousc_torch(
     TORCH_CHECK(h_input.dim() == 2, "Filter tensor h must be 2D");
 
     // ===== Data Type and Layout Preparation =====
-    // Ensure double precision and contiguous memory layout
-    auto x = x_input.to(torch::kFloat64).contiguous();
-    auto h = h_input.to(torch::kFloat64).contiguous();
+    // Ensure single precision and contiguous memory layout
+    auto x = x_input.to(torch::kFloat32).contiguous();
+    auto h = h_input.to(torch::kFloat32).contiguous();
     
     // Move M to CPU for parameter extraction (int32)
     auto M_cpu = M_input.to(torch::kCPU, torch::kInt32).contiguous();
@@ -91,7 +91,7 @@ torch::Tensor atrousc_torch(
         // Return empty tensor with non-negative dimensions
         auto result = torch::zeros(
             {std::max(0, O_rows), std::max(0, O_cols)},
-            torch::TensorOptions().dtype(torch::kFloat64).device(x.device())
+            torch::TensorOptions().dtype(torch::kFloat32).device(x.device())
         );
         return result;
     }
@@ -99,7 +99,7 @@ torch::Tensor atrousc_torch(
     // ===== Allocate Output Tensor =====
     auto out = torch::empty(
         {O_rows, O_cols},
-        torch::TensorOptions().dtype(torch::kFloat64).device(x.device())
+        torch::TensorOptions().dtype(torch::kFloat32).device(x.device())
     );
 
     // ===== Launch CUDA Kernel =====

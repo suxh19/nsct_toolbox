@@ -11,9 +11,9 @@
 
 // Declare the CUDA kernel (defined in zconv2_kernel.cu)
 __global__ void zconv2_kernel(
-    const double* __restrict__ x,
-    const double* __restrict__ h,
-    double* __restrict__ y,
+    const float* __restrict__ x,
+    const float* __restrict__ h,
+    float* __restrict__ y,
     const int s_row_len, 
     const int s_col_len,
     const int f_row_len, 
@@ -65,9 +65,9 @@ void zconv2_launcher(
 
     // Launch CUDA kernel
     zconv2_kernel<<<blocks, threads>>>(
-        x.data_ptr<double>(),
-        h.data_ptr<double>(),
-        y.data_ptr<double>(),
+        x.data_ptr<float>(),
+        h.data_ptr<float>(),
+        y.data_ptr<float>(),
         s_row_len, s_col_len,
         f_row_len, f_col_len,
         M0, M1, M2, M3,

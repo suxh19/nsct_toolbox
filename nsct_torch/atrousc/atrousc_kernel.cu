@@ -40,9 +40,9 @@
  * @param M3: Upsampling factor for columns (from matrix M[1,1])
  */
 __global__ void atrousc_kernel(
-    const double* __restrict__ x,
-    const double* __restrict__ h,
-    double* __restrict__ out,
+    const float* __restrict__ x,
+    const float* __restrict__ h,
+    float* __restrict__ out,
     const int S_rows,
     const int S_cols,
     const int F_rows,
@@ -67,7 +67,7 @@ __global__ void atrousc_kernel(
     // n1 is column index, n2 is row index
     // kk1 corresponds to column position in x, kk2 to row position
     // M0 is used with columns (kk1, k1), M3 is used with rows (kk2, k2)
-    double total = 0.0;
+    float total = 0.0f;
     int kk1 = n1 + M0 - 1;  // Column initial position
 
     // Loop over filter columns (outer loop matches CPU implementation)

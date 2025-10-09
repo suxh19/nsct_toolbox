@@ -36,7 +36,7 @@ def load_test_image(image_path: Path) -> np.ndarray:
 
 def numpy_to_torch(arr: np.ndarray) -> torch.Tensor:
     """将 NumPy 数组转换为 PyTorch 张量（使用 float64 精度），并移至 CUDA 设备。"""
-    return torch.from_numpy(arr.copy()).double().cuda()
+    return torch.from_numpy(arr.copy()).cuda()
 
 
 def torch_to_numpy(tensor: torch.Tensor) -> np.ndarray:
@@ -362,7 +362,7 @@ def main():
     print("\n正在执行 PyTorch NSCT 分解...")
     image_torch = numpy_to_torch(image)
     print(f"PyTorch 张量 dtype: {image_torch.dtype}")
-    decomp_torch = nsctdec_torch(image_torch, levels, dfilt, pfilt, dtype=torch.float64)
+    decomp_torch = nsctdec_torch(image_torch, levels, dfilt, pfilt, dtype=torch.float32)
     print(f"完成! 低通带形状: {decomp_torch[0].shape}, dtype: {decomp_torch[0].dtype}")
     for i, level in enumerate(decomp_torch[1:]):
         print(f"  层级 {i}: {len(level)} 个方向子带")

@@ -50,9 +50,9 @@ torch::Tensor zconv2_torch(
     );
 
     // ===== Data Type and Layout Preparation =====
-    // Ensure double precision and contiguous memory layout
-    x = x.to(torch::kFloat64).contiguous();
-    h = h.to(torch::kFloat64).contiguous();
+    // Ensure single precision and contiguous memory layout
+    x = x.to(torch::kFloat32).contiguous();
+    h = h.to(torch::kFloat32).contiguous();
     
     // Move mup to CPU for parameter extraction (int32)
     auto mup_cpu = mup.to(torch::kCPU, torch::kInt32).contiguous();

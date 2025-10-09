@@ -34,9 +34,9 @@
  * @param mn2_save: Initial column offset
  */
 __global__ void zconv2_kernel(
-    const double* __restrict__ x,
-    const double* __restrict__ h,
-    double* __restrict__ y,
+    const float* __restrict__ x,
+    const float* __restrict__ h,
+    float* __restrict__ y,
     const int s_row_len, 
     const int s_col_len,
     const int f_row_len, 
@@ -61,7 +61,7 @@ __global__ void zconv2_kernel(
     int mn1 = (mn1_init + n1) % s_row_len;
     int mn2 = (mn2_save + n2) % s_col_len;
 
-    double sum = 0.0;
+    float sum = 0.0f;
     int out_index_x = mn1;
     int out_index_y = mn2;
 
