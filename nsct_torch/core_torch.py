@@ -554,8 +554,12 @@ def nsctdec(x: torch.Tensor, nlevs: List[int], dfilt: str = 'dmaxflat7', pfilt: 
     # Get directional filters
     h1_dir, h2_dir = dfilters(dfilt, 'd')
     
+    # Move directional filters to the same device and dtype as input
+    h1_dir = h1_dir.to(device=x.device, dtype=x.dtype)
+    h2_dir = h2_dir.to(device=x.device, dtype=x.dtype)
+    
     # Scale for nonsubsampled case
-    scale = torch.tensor(2.0, dtype=h1_dir.dtype, device=h1_dir.device).sqrt()
+    scale = torch.tensor(2.0, dtype=x.dtype, device=x.device).sqrt()
     h1_dir = h1_dir / scale
     h2_dir = h2_dir / scale
     
@@ -573,6 +577,12 @@ def nsctdec(x: torch.Tensor, nlevs: List[int], dfilt: str = 'dmaxflat7', pfilt: 
     
     # Get pyramid filters
     h1_pyr, h2_pyr, g1_pyr, g2_pyr = atrousfilters(pfilt)
+    
+    # Move filters to the same device and dtype as input
+    h1_pyr = h1_pyr.to(device=x.device, dtype=x.dtype)
+    h2_pyr = h2_pyr.to(device=x.device, dtype=x.dtype)
+    g1_pyr = g1_pyr.to(device=x.device, dtype=x.dtype)
+    g2_pyr = g2_pyr.to(device=x.device, dtype=x.dtype)
     
     # Number of pyramid levels
     n = len(nlevs)
@@ -612,8 +622,15 @@ def nsctrec(y: List[Any], dfilt: str = 'dmaxflat7', pfilt: str = 'maxflat') -> t
     # Get directional filters for reconstruction
     h1_dir, h2_dir = dfilters(dfilt, 'r')
     
+    # Move directional filters to the same device and dtype as input
+    # Use the lowpass coefficient to determine device/dtype
+    device = y[0].device if len(y) > 0 and isinstance(y[0], torch.Tensor) else torch.device('cpu')
+    dtype = y[0].dtype if len(y) > 0 and isinstance(y[0], torch.Tensor) else torch.float64
+    h1_dir = h1_dir.to(device=device, dtype=dtype)
+    h2_dir = h2_dir.to(device=device, dtype=dtype)
+    
     # Scale for nonsubsampled case
-    scale = torch.tensor(2.0, dtype=h1_dir.dtype, device=h1_dir.device).sqrt()
+    scale = torch.tensor(2.0, dtype=dtype, device=device).sqrt()
     h1_dir = h1_dir / scale
     h2_dir = h2_dir / scale
     
@@ -631,6 +648,15 @@ def nsctrec(y: List[Any], dfilt: str = 'dmaxflat7', pfilt: str = 'maxflat') -> t
     
     # Get pyramid synthesis filters
     h1_pyr, h2_pyr, g1_pyr, g2_pyr = atrousfilters(pfilt)
+    
+    # Move filters to the same device and dtype as input
+    # Use the lowpass coefficient to determine device/dtype
+    device = y[0].device if len(y) > 0 and isinstance(y[0], torch.Tensor) else torch.device('cpu')
+    dtype = y[0].dtype if len(y) > 0 and isinstance(y[0], torch.Tensor) else torch.float64
+    g1_pyr = g1_pyr.to(device=device, dtype=dtype)
+    g2_pyr = g2_pyr.to(device=device, dtype=dtype)
+    h1_pyr = h1_pyr.to(device=device, dtype=dtype)
+    h2_pyr = h2_pyr.to(device=device, dtype=dtype)
     
     # Number of pyramid levels
     n = len(y) - 1
