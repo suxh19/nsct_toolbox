@@ -83,6 +83,8 @@ def efilter2(x: torch.Tensor, f: torch.Tensor, extmod: str = 'per', shift: Optio
         shift = [0, 0]
 
     x_float = x.to(torch.float64)
+    if f.device != x_float.device or f.dtype != x_float.dtype:
+        f = f.to(device=x_float.device, dtype=x_float.dtype)
 
     # The origin of filter f is assumed to be floor(size(f)/2) + 1.
     # Amount of shift should be no more than floor((size(f)-1)/2).

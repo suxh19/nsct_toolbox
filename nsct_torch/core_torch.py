@@ -96,6 +96,15 @@ def _zconv2_torch(x: torch.Tensor, h: torch.Tensor, mup: torch.Tensor) -> torch.
     return y
 
 
+def _ensure_filter_device_dtype(filter_tensor: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
+    """
+    Ensure filters share the same device and dtype as the reference tensor to avoid host/device transfers.
+    """
+    if filter_tensor.device == reference.device and filter_tensor.dtype == reference.dtype:
+        return filter_tensor
+    return filter_tensor.to(device=reference.device, dtype=reference.dtype)
+
+
 def _zconv2(x: torch.Tensor, h: torch.Tensor, mup: torch.Tensor) -> torch.Tensor:
     """
     2D convolution with upsampled filter using periodic boundary.
@@ -124,6 +133,8 @@ def _convolve_upsampled(x: torch.Tensor, f: torch.Tensor, mup: Union[int, float,
     Helper for convolution with an upsampled filter, handling reconstruction.
     Uses zconv2-style periodic convolution when mup is a 2x2 matrix.
     """
+    f = _ensure_filter_device_dtype(f, x)
+
     # If the filter is all zeros, the output is all zeros.
     if not torch.any(f):
         return torch.zeros_like(x)
@@ -145,6 +156,9 @@ def nssfbdec(x, f1, f2, mup=None):
     """
     Two-channel nonsubsampled filter bank decomposition.
     """
+    f1 = _ensure_filter_device_dtype(f1, x)
+    f2 = _ensure_filter_device_dtype(f2, x)
+
     if mup is None:
         y1 = efilter2(x, f1)
         y2 = efilter2(x, f2)
@@ -160,6 +174,9 @@ def nssfbrec(x1, x2, f1, f2, mup=None):
     """
     if x1.shape != x2.shape:
         raise ValueError("Input sizes for the two branches must be the same")
+    
+    f1 = _ensure_filter_device_dtype(f1, x1)
+    f2 = _ensure_filter_device_dtype(f2, x1)
 
     if mup is None:
         y1 = efilter2(x1, f1)
@@ -243,6 +260,8 @@ def _atrousc(x: torch.Tensor, f: torch.Tensor, mup: torch.Tensor) -> torch.Tenso
     Returns:
         y: Convolution output
     """
+    f = _ensure_filter_device_dtype(f, x)
+
     if ATROUSC_CUDA_AVAILABLE and x.is_cuda:
         if _atrousc_cuda is not None:
             return _atrousc_cuda(x, f, mup)
@@ -274,6 +293,9 @@ def nsfbdec(x: torch.Tensor, h0: torch.Tensor, h1: torch.Tensor, lev: int) -> Tu
         - For lev=0: Uses regular conv2 with symext
         - For lev>0: Uses upsampled filters with atrous convolution
     """
+    h0 = _ensure_filter_device_dtype(h0, x)
+    h1 = _ensure_filter_device_dtype(h1, x)
+
     if lev != 0:
         # For levels > 0, use upsampled filters
         shift = [-2**(lev-1), -2**(lev-1)]
@@ -330,6 +352,9 @@ def nsfbrec(x0: torch.Tensor, x1: torch.Tensor, g0: torch.Tensor, g1: torch.Tens
     if x0.shape != x1.shape:
         raise ValueError("Input sizes for the two branches must be the same")
     
+    g0 = _ensure_filter_device_dtype(g0, x0)
+    g1 = _ensure_filter_device_dtype(g1, x0)
+    
     if lev != 0:
         # For levels > 0, use upsampled filters
         shift = [-2**(lev-1), -2**(lev-1)]
@@ -385,11 +410,32 @@ def nsdfbdec(x: torch.Tensor, filters: dict, n: int) -> List[torch.Tensor]:
         # No decomposition
         return [x]
     
-    # Extract filters
-    k1 = filters['k1']
-    k2 = filters['k2']
-    f1 = filters['f1']  # This is a list of 4 filters
-    f2 = filters['f2']  # This is a list of 4 filters
+    # Extract filters and align them with the input tensor
+    k1_raw = filters['k1']
+    k1 = _ensure_filter_device_dtype(k1_raw, x)
+    if k1 is not k1_raw:
+        filters['k1'] = k1
+
+    k2_raw = filters['k2']
+    k2 = _ensure_filter_device_dtype(k2_raw, x)
+    if k2 is not k2_raw:
+        filters['k2'] = k2
+
+    f1_list = filters['f1']  # This is a list of 4 filters
+    f1 = []
+    for idx, filt in enumerate(f1_list):
+        filt_prepared = _ensure_filter_device_dtype(filt, x)
+        if filt_prepared is not filt:
+            f1_list[idx] = filt_prepared
+        f1.append(filt_prepared)
+
+    f2_list = filters['f2']  # This is a list of 4 filters
+    f2 = []
+    for idx, filt in enumerate(f2_list):
+        filt_prepared = _ensure_filter_device_dtype(filt, x)
+        if filt_prepared is not filt:
+            f2_list[idx] = filt_prepared
+        f2.append(filt_prepared)
     
     # First level of decomposition (no upsampling matrix)
     if n == 1:
@@ -476,11 +522,34 @@ def nsdfbrec(y: List[torch.Tensor], filters: dict) -> torch.Tensor:
     if n == 0:
         return y[0]
     
-    # Extract filters
-    k1 = filters['k1']
-    k2 = filters['k2']
-    f1 = filters['f1']  # List of 4 filters
-    f2 = filters['f2']  # List of 4 filters
+    # Extract filters and align them with the coefficient tensors
+    reference = y[0]
+
+    k1_raw = filters['k1']
+    k1 = _ensure_filter_device_dtype(k1_raw, reference)
+    if k1 is not k1_raw:
+        filters['k1'] = k1
+
+    k2_raw = filters['k2']
+    k2 = _ensure_filter_device_dtype(k2_raw, reference)
+    if k2 is not k2_raw:
+        filters['k2'] = k2
+
+    f1_list = filters['f1']  # List of 4 filters
+    f1 = []
+    for idx, filt in enumerate(f1_list):
+        filt_prepared = _ensure_filter_device_dtype(filt, reference)
+        if filt_prepared is not filt:
+            f1_list[idx] = filt_prepared
+        f1.append(filt_prepared)
+
+    f2_list = filters['f2']  # List of 4 filters
+    f2 = []
+    for idx, filt in enumerate(f2_list):
+        filt_prepared = _ensure_filter_device_dtype(filt, reference)
+        if filt_prepared is not filt:
+            f2_list[idx] = filt_prepared
+        f2.append(filt_prepared)
     
     # First-level reconstruction (no upsampling)
     if n == 1:

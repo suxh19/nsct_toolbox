@@ -157,13 +157,16 @@ def modulate2(x, mode='b', center=None):
         torch.Tensor: Modulated matrix.
     """
     s = x.shape
+    device = x.device
     if center is None:
         center = [0, 0]
 
-    o = torch.floor(torch.tensor(s, dtype=torch.float32) / 2) + 1 + torch.tensor(center, dtype=torch.float32)
+    shape_tensor = torch.tensor(s, dtype=torch.float32, device=device)
+    center_tensor = torch.tensor(center, dtype=torch.float32, device=device)
+    o = torch.floor(shape_tensor / 2) + 1.0 + center_tensor
 
-    n1 = torch.arange(1, s[0] + 1, dtype=torch.float32, device=x.device) - o[0]
-    n2 = torch.arange(1, s[1] + 1, dtype=torch.float32, device=x.device) - o[1]
+    n1 = torch.arange(1, s[0] + 1, dtype=torch.float32, device=device) - o[0]
+    n2 = torch.arange(1, s[1] + 1, dtype=torch.float32, device=device) - o[1]
 
     y = x.to(torch.float64).clone()
     
