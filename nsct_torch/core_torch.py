@@ -555,8 +555,9 @@ def nsctdec(x: torch.Tensor, nlevs: List[int], dfilt: str = 'dmaxflat7', pfilt: 
     h1_dir, h2_dir = dfilters(dfilt, 'd')
     
     # Scale for nonsubsampled case
-    h1_dir = h1_dir / torch.sqrt(torch.tensor(2.0))
-    h2_dir = h2_dir / torch.sqrt(torch.tensor(2.0))
+    scale = torch.tensor(2.0, dtype=h1_dir.dtype, device=h1_dir.device).sqrt()
+    h1_dir = h1_dir / scale
+    h2_dir = h2_dir / scale
     
     # Create filter dictionary for DFB
     k1 = modulate2(h1_dir, 'c')
@@ -612,8 +613,9 @@ def nsctrec(y: List[Any], dfilt: str = 'dmaxflat7', pfilt: str = 'maxflat') -> t
     h1_dir, h2_dir = dfilters(dfilt, 'r')
     
     # Scale for nonsubsampled case
-    h1_dir = h1_dir / torch.sqrt(torch.tensor(2.0))
-    h2_dir = h2_dir / torch.sqrt(torch.tensor(2.0))
+    scale = torch.tensor(2.0, dtype=h1_dir.dtype, device=h1_dir.device).sqrt()
+    h1_dir = h1_dir / scale
+    h2_dir = h2_dir / scale
     
     # Create filter dictionary for DFB
     k1 = modulate2(h1_dir, 'c')

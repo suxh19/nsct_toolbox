@@ -64,6 +64,13 @@ def parse_args() -> argparse.Namespace:
         help="Floating point precision to use for both backends (default: %(default)s).",
     )
     parser.add_argument(
+        "--device",
+        type=str,
+        default="cpu",
+        choices=("cpu", "cuda"),
+        help="Torch device to run on (default: %(default)s). Use 'cuda' for GPU benchmarking.",
+    )
+    parser.add_argument(
         "--repeats",
         type=int,
         default=3,
@@ -161,11 +168,15 @@ def compare_structures(
     return structure_ok, max_abs, max_rel
 
 
-def time_call(fn, *args, repeats: int) -> Tuple[float, float]:
+def time_call(fn, *args, repeats: int, device_type: str) -> Tuple[float, float]:
     samples: List[float] = []
     for _ in range(repeats):
+        if device_type == "cuda":
+            torch.cuda.synchronize()
         start = time.perf_counter()
         fn(*args)
+        if device_type == "cuda":
+            torch.cuda.synchronize()
         samples.append(time.perf_counter() - start)
     return statistics.mean(samples), statistics.pstdev(samples)
 
@@ -180,11 +191,15 @@ def benchmark_backends(
 ) -> dict[str, Any]:
     coeffs_numpy = nsctdec_numpy(image_np, levels, dfilt=dfilt, pfilt=pfilt)
     coeffs_torch = nsctdec_torch(image_torch, levels, dfilt=dfilt, pfilt=pfilt)
+    if image_torch.device.type == "cuda":
+        torch.cuda.synchronize()
 
     structure_ok, max_abs, max_rel = compare_structures(coeffs_numpy, coeffs_torch)
 
     recon_numpy = nsctrec_numpy(coeffs_numpy, dfilt=dfilt, pfilt=pfilt)
     recon_torch = nsctrec_torch(coeffs_torch, dfilt=dfilt, pfilt=pfilt)
+    if image_torch.device.type == "cuda":
+        torch.cuda.synchronize()
     recon_torch_np = recon_torch.detach().cpu().numpy()
 
     recon_err_numpy = float(np.max(np.abs(image_np - recon_numpy)))
@@ -193,16 +208,27 @@ def benchmark_backends(
 
     # Warm-up done above; repeat timing on fresh runs.
     dec_np_mean, dec_np_std = time_call(
-        nsctdec_numpy, image_np, levels, dfilt, pfilt, repeats=repeats
+        nsctdec_numpy, image_np, levels, dfilt, pfilt, repeats=repeats, device_type="cpu"
     )
     rec_np_mean, rec_np_std = time_call(
-        nsctrec_numpy, coeffs_numpy, dfilt, pfilt, repeats=repeats
+        nsctrec_numpy, coeffs_numpy, dfilt, pfilt, repeats=repeats, device_type="cpu"
     )
     dec_torch_mean, dec_torch_std = time_call(
-        nsctdec_torch, image_torch, levels, dfilt, pfilt, repeats=repeats
+        nsctdec_torch,
+        image_torch,
+        levels,
+        dfilt,
+        pfilt,
+        repeats=repeats,
+        device_type=image_torch.device.type,
     )
     rec_torch_mean, rec_torch_std = time_call(
-        nsctrec_torch, coeffs_torch, dfilt, pfilt, repeats=repeats
+        nsctrec_torch,
+        coeffs_torch,
+        dfilt,
+        pfilt,
+        repeats=repeats,
+        device_type=image_torch.device.type,
     )
 
     return {
@@ -231,9 +257,16 @@ def main() -> None:
     levels_list = parse_levels(args.levels)
 
     np_image, torch_image = load_image(args.image, dtype=args.dtype)
+    device = torch.device(args.device)
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA requested but not available on this system.")
+    torch_image = torch_image.to(device)
     print(f"Loaded image {args.image} → shape={np_image.shape}, dtype={np_image.dtype}")
     print(f"Level configurations: {levels_list}")
-    print(f"Filters: dfilt='{args.dfilt}', pfilt='{args.pfilt}', repeats={args.repeats}")
+    print(
+        f"Filters: dfilt='{args.dfilt}', pfilt='{args.pfilt}', repeats={args.repeats}, "
+        f"torch device='{device}'"
+    )
 
     all_results = {}
     for idx, levels in enumerate(levels_list, start=1):

@@ -196,7 +196,7 @@ class TestNssfbrecConsistency:
         g0_np = g0_np * scale
         g1_np = g1_np * scale
         
-        scale_torch = 1.0 / torch.sqrt(torch.tensor(2.0))
+        scale_torch = 1.0 / torch.tensor(2.0, dtype=h1_torch.dtype, device=h1_torch.device).sqrt()
         h0_torch = h0_torch * scale_torch
         h1_torch = h1_torch * scale_torch
         g0_torch = g0_torch * scale_torch
@@ -293,8 +293,9 @@ class TestNsdfbdecConsistency:
         # Scale filters
         h1_np = h1_np / np.sqrt(2)
         h2_np = h2_np / np.sqrt(2)
-        h1_torch = h1_torch / torch.sqrt(torch.tensor(2.0))
-        h2_torch = h2_torch / torch.sqrt(torch.tensor(2.0))
+        scale = torch.tensor(2.0, dtype=h1_torch.dtype, device=h1_torch.device).sqrt()
+        h1_torch = h1_torch / scale
+        h2_torch = h2_torch / scale
         
         # Create filter dictionaries
         from nsct_python.filters import modulate2 as modulate2_np, parafilters as parafilters_np
@@ -341,8 +342,9 @@ class TestNsdfbrecConsistency:
         
         h1_np = h1_np / np.sqrt(2)
         h2_np = h2_np / np.sqrt(2)
-        h1_torch = h1_torch / torch.sqrt(torch.tensor(2.0))
-        h2_torch = h2_torch / torch.sqrt(torch.tensor(2.0))
+        scale = torch.tensor(2.0, dtype=h1_torch.dtype, device=h1_torch.device).sqrt()
+        h1_torch = h1_torch / scale
+        h2_torch = h2_torch / scale
         
         from nsct_python.filters import modulate2 as modulate2_np, parafilters as parafilters_np
         from nsct_torch.filters_torch import modulate2 as modulate2_torch, parafilters as parafilters_torch
@@ -370,8 +372,9 @@ class TestNsdfbrecConsistency:
         
         h1_syn_np = h1_syn_np / np.sqrt(2)
         h2_syn_np = h2_syn_np / np.sqrt(2)
-        h1_syn_torch = h1_syn_torch / torch.sqrt(torch.tensor(2.0))
-        h2_syn_torch = h2_syn_torch / torch.sqrt(torch.tensor(2.0))
+        scale = torch.tensor(2.0, dtype=h1_syn_torch.dtype, device=h1_syn_torch.device).sqrt()
+        h1_syn_torch = h1_syn_torch / scale
+        h2_syn_torch = h2_syn_torch / scale
         
         k1_syn_np = modulate2_np(h1_syn_np, 'c')
         k2_syn_np = modulate2_np(h2_syn_np, 'c')
@@ -535,8 +538,9 @@ class TestEdgeCases:
         y = [torch.rand(32, 32) for _ in range(3)]
         
         h1, h2 = dfilters_torch('pkva', 'r')
-        h1 = h1 / torch.sqrt(torch.tensor(2.0))
-        h2 = h2 / torch.sqrt(torch.tensor(2.0))
+        scale = torch.tensor(2.0, dtype=h1.dtype, device=h1.device).sqrt()
+        h1 = h1 / scale
+        h2 = h2 / scale
         
         from nsct_torch.filters_torch import modulate2, parafilters
         k1 = modulate2(h1, 'c')
