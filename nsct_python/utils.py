@@ -53,100 +53,70 @@ def extend2(x, ru, rd, cl, cr, extmod='per'):
     raise ValueError(f"Invalid extension mode: {extmod}")
 
 
+def _reflect_indices(length: int, pad: int, side: str) -> np.ndarray:
+    """
+    Generate reflection indices for symmetric padding following MATLAB semantics.
+    Handles arbitrarily large padding by repeatedly mirroring the borders.
+    """
+    if pad <= 0:
+        return np.empty(0, dtype=int)
+
+    if length <= 0:
+        raise ValueError("Input length must be positive for symmetric extension")
+
+    if side == "left":
+        idx = np.arange(-pad, 0)
+    elif side == "right":
+        idx = np.arange(length, length + pad)
+    else:
+        raise ValueError("side must be 'left' or 'right'")
+
+    if length == 1:
+        return np.zeros_like(idx)
+
+    period = 2 * length
+    idx_mod = np.mod(idx, period)
+    reflected = np.where(idx_mod < length, idx_mod, period - idx_mod - 1)
+    return reflected.astype(int)
+
+
 def symext(x, h, shift):
     """
     Symmetric extension for image x with filter h.
     Translation of symext.m.
     
-    Performs symmetric extension (H/V symmetry) for image x and filter h.
-    The filter h is assumed to have odd dimensions.
-    If the filter has horizontal and vertical symmetry, then 
-    the nonsymmetric part of conv2(h,x) has the same size as x.
-    
-    Args:
-        x (np.ndarray): Input image (m×n).
-        h (np.ndarray): 2D filter coefficients.
-        shift (list or tuple): Shift values [s1, s2].
-    
-    Returns:
-        np.ndarray: Symmetrically extended image with size (m+p-1, n+q-1),
-                    where p and q are the filter dimensions.
-    
-    Notes:
-        - Created by A. Cunha, Fall 2003
-        - Modified 12/2005 by A. Cunha (fixed bug on swapped indices)
-        - Python translation maintains exact MATLAB behavior
-    
-    Example:
-        >>> x = np.arange(16).reshape(4, 4)
-        >>> h = np.ones((3, 3))
-        >>> shift = [1, 1]
-        >>> y = symext(x, h, shift)
-        >>> y.shape
-        (6, 6)
+    Mirrors the borders repeatedly when the requested extension exceeds the
+    signal length, matching MATLAB's behaviour for all image and filter sizes.
     """
+    if x.ndim != 2:
+        raise ValueError("symext expects a 2D array")
+
     m, n = x.shape
     p, q = h.shape
-    
-    # MATLAB: parp = 1 - mod(p, 2); parq = 1 - mod(q, 2)
-    # These variables are computed but not used in MATLAB code
-    # parp = 1 - (p % 2)
-    # parq = 1 - (q % 2)
-    
+
     p2 = int(np.floor(p / 2))
     q2 = int(np.floor(q / 2))
-    s1 = shift[0]
-    s2 = shift[1]
-    
-    # Calculate extension amounts
-    ss = p2 - s1 + 1
-    rr = q2 - s2 + 1
-    
-    # MATLAB: yT = [fliplr(x(:,1:ss)) x  x(:,n  :-1: n-p-s1+1)];
-    # Horizontal extension (left and right)
-    if ss > 0:
-        left_ext = np.fliplr(x[:, :ss])
-    else:
-        left_ext = np.empty((m, 0))
-    
-    # Right extension: x(:, n:-1:n-p-s1+1)
-    # MATLAB indices: n (last column, index n-1 in Python) down to n-p-s1+1
-    # In Python: n-1 down to n-p-s1 (inclusive)
-    right_start = n - 1
-    right_end = n - p - s1  # This will be used as: right_end : right_start + 1
-    
-    if right_end <= right_start:
-        right_ext = np.fliplr(x[:, right_end:right_start + 1])
-    else:
-        right_ext = np.empty((m, 0))
-    
-    yT = np.concatenate([left_ext, x, right_ext], axis=1)
-    
-    # MATLAB: yT = [flipud(yT(1:rr,:)); yT ;  yT(m  :-1: m-q-s2+1,:)];
-    # Vertical extension (top and bottom)
-    if rr > 0:
-        top_ext = np.flipud(yT[:rr, :])
-    else:
-        top_ext = np.empty((0, yT.shape[1]))
-    
-    # Bottom extension: yT(m:-1:m-q-s2+1, :)
-    # MATLAB indices: m (last row, index m-1 in Python) down to m-q-s2+1
-    # In Python: m-1 down to m-q-s2 (inclusive)
-    bottom_start = m - 1
-    bottom_end = m - q - s2
-    
-    if bottom_end <= bottom_start:
-        bottom_ext = np.flipud(yT[bottom_end:bottom_start + 1, :])
-    else:
-        bottom_ext = np.empty((0, yT.shape[1]))
-    
-    yT = np.concatenate([top_ext, yT, bottom_ext], axis=0)
-    
-    # MATLAB: yT = yT(1:m+p-1, 1:n+q-1);
-    # Crop to final size (this is already the expected size, so just verify)
-    yT = yT[:m + p - 1, :n + q - 1]
-    
-    return yT
+    s1 = int(shift[0])
+    s2 = int(shift[1])
+
+    pad_left = p2 - s1 + 1
+    pad_right = p + s1
+    pad_top = q2 - s2 + 1
+    pad_bottom = q + s2
+
+    center_cols = np.arange(n, dtype=int)
+    left_idx = _reflect_indices(n, pad_left, "left")
+    right_idx = _reflect_indices(n, pad_right, "right")
+    col_idx = np.concatenate([left_idx, center_cols, right_idx], axis=0)
+    extended = x[:, col_idx]
+
+    center_rows = np.arange(m, dtype=int)
+    top_idx = _reflect_indices(m, pad_top, "left")
+    bottom_idx = _reflect_indices(m, pad_bottom, "right")
+    row_idx = np.concatenate([top_idx, center_rows, bottom_idx], axis=0)
+    extended = extended[row_idx, :]
+
+    return extended[:m + p - 1, :n + q - 1]
 
 
 def upsample2df(h, power=1):

@@ -57,83 +57,72 @@ def extend2(x, ru, rd, cl, cr, extmod='per'):
     raise ValueError(f"Invalid extension mode: {extmod}")
 
 
+def _reflect_indices(length: int, pad: int, side: str, device: torch.device) -> torch.Tensor:
+    """
+    Generate reflection indices for symmetric padding. Handles arbitrarily large
+    padding values by repeatedly mirroring the borders, matching MATLAB's
+    symmetric extension semantics.
+    """
+    if pad <= 0:
+        return torch.empty(0, dtype=torch.long, device=device)
+
+    if length <= 0:
+        raise ValueError("Input length must be positive for symmetric extension")
+
+    if side == "left":
+        idx = torch.arange(-pad, 0, device=device)
+    elif side == "right":
+        idx = torch.arange(length, length + pad, device=device)
+    else:
+        raise ValueError("side must be 'left' or 'right'")
+
+    if length == 1:
+        return torch.zeros_like(idx)
+
+    period = 2 * length
+    idx_mod = torch.remainder(idx, period)
+    reflected = torch.where(idx_mod < length, idx_mod, period - idx_mod - 1)
+    return reflected.to(torch.long)
+
+
 def symext(x, h, shift):
     """
-    Symmetric extension for image x with filter h.
-    PyTorch translation of symext.m.
-    
-    Performs symmetric extension (H/V symmetry) for image x and filter h.
-    The filter h is assumed to have odd dimensions.
-    If the filter has horizontal and vertical symmetry, then 
-    the nonsymmetric part of conv2(h,x) has the same size as x.
-    
-    Args:
-        x (torch.Tensor): Input image (m×n).
-        h (torch.Tensor): 2D filter coefficients.
-        shift (list or tuple): Shift values [s1, s2].
-    
-    Returns:
-        torch.Tensor: Symmetrically extended image with size (m+p-1, n+q-1),
-                      where p and q are the filter dimensions.
-    
-    Example:
-        >>> x = torch.arange(16, dtype=torch.float32).reshape(4, 4)
-        >>> h = torch.ones((3, 3))
-        >>> shift = [1, 1]
-        >>> y = symext(x, h, shift)
-        >>> y.shape
-        torch.Size([6, 6])
+    Symmetric extension for image x with filter h (PyTorch translation).
+
+    This implementation mirrors the MATLAB behaviour even when the requested
+    extension exceeds the signal length by repeatedly reflecting the borders.
     """
+    if x.dim() != 2:
+        raise ValueError("symext expects a 2D tensor")
+
     m, n = x.shape
     p, q = h.shape
-    
+
     p2 = int(p // 2)
     q2 = int(q // 2)
-    s1 = shift[0]
-    s2 = shift[1]
-    
-    # Calculate extension amounts
-    ss = p2 - s1 + 1
-    rr = q2 - s2 + 1
-    
-    # Horizontal extension (left and right)
-    if ss > 0:
-        left_ext = torch.flip(x[:, :ss], dims=[1])
-    else:
-        left_ext = torch.empty((m, 0), dtype=x.dtype, device=x.device)
-    
-    # Right extension
-    right_start = n - 1
-    right_end = n - p - s1
-    
-    if right_end <= right_start:
-        right_ext = torch.flip(x[:, right_end:right_start + 1], dims=[1])
-    else:
-        right_ext = torch.empty((m, 0), dtype=x.dtype, device=x.device)
-    
-    yT = torch.cat([left_ext, x, right_ext], dim=1)
-    
-    # Vertical extension (top and bottom)
-    if rr > 0:
-        top_ext = torch.flip(yT[:rr, :], dims=[0])
-    else:
-        top_ext = torch.empty((0, yT.shape[1]), dtype=x.dtype, device=x.device)
-    
-    # Bottom extension
-    bottom_start = m - 1
-    bottom_end = m - q - s2
-    
-    if bottom_end <= bottom_start:
-        bottom_ext = torch.flip(yT[bottom_end:bottom_start + 1, :], dims=[0])
-    else:
-        bottom_ext = torch.empty((0, yT.shape[1]), dtype=x.dtype, device=x.device)
-    
-    yT = torch.cat([top_ext, yT, bottom_ext], dim=0)
-    
-    # Crop to final size
-    yT = yT[:m + p - 1, :n + q - 1]
-    
-    return yT
+    s1 = int(shift[0])
+    s2 = int(shift[1])
+
+    pad_left = p2 - s1 + 1
+    pad_right = p + s1
+    pad_top = q2 - s2 + 1
+    pad_bottom = q + s2
+
+    device = x.device
+
+    center_cols = torch.arange(n, device=device, dtype=torch.long)
+    left_idx = _reflect_indices(n, pad_left, "left", device)
+    right_idx = _reflect_indices(n, pad_right, "right", device)
+    col_idx = torch.cat([left_idx, center_cols, right_idx], dim=0)
+    extended = x.index_select(1, col_idx)
+
+    center_rows = torch.arange(m, device=device, dtype=torch.long)
+    top_idx = _reflect_indices(m, pad_top, "left", device)
+    bottom_idx = _reflect_indices(m, pad_bottom, "right", device)
+    row_idx = torch.cat([top_idx, center_rows, bottom_idx], dim=0)
+    extended = extended.index_select(0, row_idx)
+
+    return extended[: m + p - 1, : n + q - 1]
 
 
 def upsample2df(h, power=1):
