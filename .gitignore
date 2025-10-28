@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# IDE / Editor
+.idea/
+.vscode/
+build/
+
+# MATLAB
+*.asv
+*.bak
+
+# Test data
+/test_data/*.mat
+/matlab_tests/*.m
+
+# OS generated files
+.DS_Store
+Thumbs.db
+WARP.md
+output/
+
+data/
